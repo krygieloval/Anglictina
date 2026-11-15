@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Subtle shadow underneath -->
+    <path
+        android:pathData="M18,86 C36,90 64,90 82,86 C75,83 25,83 18,86 Z"
+        android:fillColor="#18000000" />
+    <!-- Big Recognizable Arched Skipping Rope Cord (double-loop rope arc) -->
+    <path
+        android:pathData="M25,62 C18,32 31,14 50,14 C69,14 82,32 75,62"
+        android:strokeColor="#2563EB"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M25,62 C18,32 31,14 50,14 C69,14 82,32 75,62"
+        android:strokeColor="#60A5FA"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <!-- Rope Accent Motion Arcs -->
+    <path
+        android:pathData="M36,22 C43,19 57,19 64,22"
+        android:strokeColor="#FBBF24"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <!-- Left Handle Collar -->
+    <path
+        android:pathData="M22,60 L29,57 L31,62 L24,65 Z"
+        android:fillColor="#FACC15"
+        android:strokeColor="#B45309"
+        android:strokeWidth="1.2" />
+    <!-- Left Red Ergonomic Handle -->
+    <path
+        android:pathData="M24,63 L31,60 L38,79 C39,82 37,85 34,86 C31,87 28,85 27,82 Z"
+        android:fillColor="#EF4444"
+        android:strokeColor="#991B1B"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M26,70 L33,67 M28,76 L35,73"
+        android:strokeColor="#FCA5A5"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <!-- Right Handle Collar -->
+    <path
+        android:pathData="M71,57 L78,60 L76,65 L69,62 Z"
+        android:fillColor="#FACC15"
+        android:strokeColor="#B45309"
+        android:strokeWidth="1.2" />
+    <!-- Right Red Ergonomic Handle -->
+    <path
+        android:pathData="M69,60 L76,63 L73,82 C72,85 69,87 66,86 C63,85 61,82 62,79 Z"
+        android:fillColor="#EF4444"
+        android:strokeColor="#991B1B"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M67,67 L74,70 M65,73 L72,76"
+        android:strokeColor="#FCA5A5"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+</vector>

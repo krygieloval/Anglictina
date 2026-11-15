@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Floor shadow -->
+    <path
+        android:pathData="M10,79 C26,84 74,84 90,79 C84,75 16,75 10,79 Z"
+        android:fillColor="#18000000" />
+    <!-- Wooden Legs -->
+    <path
+        android:pathData="M18,70 L24,70 L22,79 L17,79 Z M76,70 L82,70 L83,79 L78,79 Z"
+        android:fillColor="#78471D"
+        android:strokeColor="#5C3412"
+        android:strokeWidth="1.1" />
+    <!-- Sofa Backrest (wide multi-seat couch) -->
+    <path
+        android:pathData="M16,28 C16,23 20,20 25,20 L75,20 C80,20 84,23 84,28 L84,56 L16,56 Z"
+        android:fillColor="#1D4ED8"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.5" />
+    <!-- Two wide Back Cushions -->
+    <path
+        android:pathData="M21,26 C21,24 23,23 26,23 L47,23 C49,23 50,24 50,26 L50,52 L21,52 Z"
+        android:fillColor="#2563EB"
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="1.2" />
+    <path
+        android:pathData="M50,26 C50,24 51,23 53,23 L74,23 C77,23 79,24 79,26 L79,52 L50,52 Z"
+        android:fillColor="#2563EB"
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="1.2" />
+    <!-- Button Tufts on Back Cushions -->
+    <path
+        android:pathData="M34,37 A1.6,1.6 0 1,1 33.9,37 Z M65,37 A1.6,1.6 0 1,1 64.9,37 Z"
+        android:fillColor="#93C5FD" />
+    <!-- Accent Mustard Throw Pillow -->
+    <path
+        android:pathData="M22,38 C24,35 32,35 35,38 L37,50 L21,50 Z"
+        android:fillColor="#FBBF24"
+        android:strokeColor="#D97706"
+        android:strokeWidth="1.1" />
+    <!-- Seat Cushions (two plush seats) -->
+    <path
+        android:pathData="M18,51 L50,51 L50,62 L18,62 Z"
+        android:fillColor="#3B82F6"
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="1.2" />
+    <path
+        android:pathData="M50,51 L82,51 L82,62 L50,62 Z"
+        android:fillColor="#3B82F6"
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="1.2" />
+    <!-- Sofa Lower Base -->
+    <path
+        android:pathData="M14,62 L86,62 L86,71 C86,72 85,73 83,73 L17,73 C15,73 14,72 14,71 Z"
+        android:fillColor="#1D4ED8"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.4" />
+    <!-- Left & Right Rounded Armrests -->
+    <path
+        android:pathData="M8,43 C8,39 11,36 15,36 C18,36 20,39 20,43 L20,71 C20,72 19,73 17,73 L11,73 C9,73 8,72 8,71 Z"
+        android:fillColor="#60A5FA"
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="1.4" />
+    <path
+        android:pathData="M80,43 C80,39 82,36 85,36 C89,36 92,39 92,43 L92,71 C92,72 91,73 89,73 L83,73 C81,73 80,72 80,71 Z"
+        android:fillColor="#60A5FA"
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="1.4" />
+</vector>

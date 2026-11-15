@@ -1,0 +1,207 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidExerciseType(value) {
+      return value is string && value in ['MATCHING', 'FILL_BLANK', 'PRONUNCIATION', 'SHOOTER'];
+    }
+
+    function isValidWordPack(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 60 &&
+             data.description is string && data.description.size() <= 200 &&
+             data.emoji is string && data.emoji.size() >= 1 && data.emoji.size() <= 16 &&
+             data.colorIndex is int && data.colorIndex >= 0 && data.colorIndex <= 5 &&
+             data.enabledExercises is list &&
+             data.enabledExercises.size() >= 1 &&
+             data.enabledExercises.size() <= 4 &&
+             data.enabledExercises.hasOnly(['MATCHING', 'FILL_BLANK', 'PRONUNCIATION', 'SHOOTER']) &&
+             data.wordCount is int && data.wordCount >= 0 && data.wordCount <= 500;
+    }
+
+    function isValidVocabWord(data) {
+      return isValidId(data.packId) &&
+             data.englishWord is string && data.englishWord.size() >= 1 && data.englishWord.size() <= 60 &&
+             data.czechTranslation is string && data.czechTranslation.size() >= 1 && data.czechTranslation.size() <= 60 &&
+             data.exampleSentence is string && data.exampleSentence.size() <= 180 &&
+             data.imageBase64 is string && data.imageBase64.size() <= 140000;
+    }
+
+    function isValidWordProgress(data) {
+      return isValidId(data.packId) &&
+             data.englishWord is string && data.englishWord.size() >= 1 && data.englishWord.size() <= 60 &&
+             data.czechTranslation is string && data.czechTranslation.size() >= 1 && data.czechTranslation.size() <= 60 &&
+             data.attempts is int && data.attempts >= 0 && data.attempts <= 100000 &&
+             data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 100000 &&
+             data.correctCount <= data.attempts &&
+             data.streak is int && data.streak >= 0 && data.streak <= 100000;
+    }
+
+    function isValidExerciseTypeStats(data) {
+      return isValidExerciseType(data.exerciseType) &&
+             data.attempts is int && data.attempts >= 0 && data.attempts <= 1000000 &&
+             data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 1000000 &&
+             data.correctCount <= data.attempts &&
+             data.sessionsCompleted is int && data.sessionsCompleted >= 0 && data.sessionsCompleted <= 100000 &&
+             data.bestScore is int && data.bestScore >= 0 && data.bestScore <= 1000000;
+    }
+
+    function isValidParentSettings(data) {
+      return data.childName is string && data.childName.size() >= 1 && data.childName.size() <= 40 &&
+             data.parentPinEnabled is bool &&
+             data.parentPin is string && data.parentPin.size() <= 6 &&
+             data.totalStars is int && data.totalStars >= 0 && data.totalStars <= 1000000;
+    }
+
+    match /users/{userId} {
+      match /packs/{packId} {
+        allow get: if isOwner(userId) && isValidId(packId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(packId) &&
+                         incoming().keys().hasAll(['title', 'description', 'emoji', 'colorIndex', 'enabledExercises', 'wordCount', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['title', 'description', 'emoji', 'colorIndex', 'enabledExercises', 'wordCount', 'createdAt', 'updatedAt']) &&
+                         isValidWordPack(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(packId) &&
+                         isValidWordPack(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'emoji', 'colorIndex', 'enabledExercises', 'wordCount', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(packId);
+
+        match /words/{wordId} {
+          allow get: if isOwner(userId) && isValidId(packId) && isValidId(wordId);
+          allow list: if isOwner(userId) && isValidId(packId);
+
+          allow create: if isOwner(userId) &&
+                           isValidId(packId) &&
+                           isValidId(wordId) &&
+                           incoming().keys().hasAll(['packId', 'englishWord', 'czechTranslation', 'exampleSentence', 'imageBase64', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasOnly(['packId', 'englishWord', 'czechTranslation', 'exampleSentence', 'imageBase64', 'createdAt', 'updatedAt']) &&
+                           incoming().packId == packId &&
+                           isValidVocabWord(incoming()) &&
+                           isValidTimestamp(incoming().createdAt) &&
+                           isValidTimestamp(incoming().updatedAt) &&
+                           (exists(/databases/$(database)/documents/users/$(userId)/packs/$(packId)) ||
+                            existsAfter(/databases/$(database)/documents/users/$(userId)/packs/$(packId)));
+
+          allow update: if isOwner(userId) &&
+                           isValidId(packId) &&
+                           isValidId(wordId) &&
+                           isValidVocabWord(incoming()) &&
+                           incoming().packId == existing().packId &&
+                           incoming().createdAt == existing().createdAt &&
+                           isValidTimestamp(incoming().updatedAt) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['englishWord', 'czechTranslation', 'exampleSentence', 'imageBase64', 'updatedAt']);
+
+          allow delete: if isOwner(userId) && isValidId(packId) && isValidId(wordId);
+        }
+      }
+
+      match /wordStats/{wordId} {
+        allow get: if isOwner(userId) && isValidId(wordId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(wordId) &&
+                         incoming().keys().hasAll(['packId', 'englishWord', 'czechTranslation', 'attempts', 'correctCount', 'streak', 'lastPracticedAt', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['packId', 'englishWord', 'czechTranslation', 'attempts', 'correctCount', 'streak', 'lastPracticedAt', 'createdAt', 'updatedAt']) &&
+                         isValidWordProgress(incoming()) &&
+                         isValidTimestamp(incoming().lastPracticedAt) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(wordId) &&
+                         isValidWordProgress(incoming()) &&
+                         incoming().packId == existing().packId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().lastPracticedAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['englishWord', 'czechTranslation', 'attempts', 'correctCount', 'streak', 'lastPracticedAt', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(wordId);
+      }
+
+      match /exerciseStats/{exerciseType} {
+        allow get: if isOwner(userId) && isValidExerciseType(exerciseType);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidExerciseType(exerciseType) &&
+                         incoming().keys().hasAll(['exerciseType', 'attempts', 'correctCount', 'sessionsCompleted', 'bestScore', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['exerciseType', 'attempts', 'correctCount', 'sessionsCompleted', 'bestScore', 'createdAt', 'updatedAt']) &&
+                         incoming().exerciseType == exerciseType &&
+                         isValidExerciseTypeStats(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidExerciseType(exerciseType) &&
+                         isValidExerciseTypeStats(incoming()) &&
+                         incoming().exerciseType == existing().exerciseType &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['attempts', 'correctCount', 'sessionsCompleted', 'bestScore', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidExerciseType(exerciseType);
+      }
+
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(settingId) &&
+                         incoming().keys().hasAll(['childName', 'parentPinEnabled', 'parentPin', 'totalStars', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['childName', 'parentPinEnabled', 'parentPin', 'totalStars', 'createdAt', 'updatedAt']) &&
+                         isValidParentSettings(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(settingId) &&
+                         isValidParentSettings(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['childName', 'parentPinEnabled', 'parentPin', 'totalStars', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(settingId);
+      }
+    }
+  }
+}

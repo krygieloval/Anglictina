@@ -1,0 +1,6 @@
+{
+  "name": "Slovíčka",
+  "description": "Hravá aplikace pro děti na procvičování anglických slovíček s obrázky, kontrolou výslovnosti, doplňovačkami, spojovačkami a minihrou.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

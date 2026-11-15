@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Subtle shadow underneath skirt -->
+    <path
+        android:pathData="M20,84 C32,88 68,88 80,84 C74,81 26,81 20,84 Z"
+        android:fillColor="#1A000000" />
+    <!-- Pleated A-line skirt body -->
+    <path
+        android:pathData="M31,26 L69,26 L84,78 C72,84 28,84 16,78 Z"
+        android:fillColor="#EC4899"
+        android:strokeColor="#9D174D"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round" />
+    <!-- Alternate shaded pleats for depth -->
+    <path
+        android:pathData="M34,27 L25,80 L34,81 L39,27 Z"
+        android:fillColor="#DB2777" />
+    <path
+        android:pathData="M45,27 L42,82 L50,82 L50,27 Z"
+        android:fillColor="#F472B6" />
+    <path
+        android:pathData="M56,27 L58,82 L66,81 L61,27 Z"
+        android:fillColor="#DB2777" />
+    <path
+        android:pathData="M65,27 L73,80 L81,78 L68,27 Z"
+        android:fillColor="#F472B6" />
+    <!-- Pleat fold crisp lines -->
+    <path
+        android:pathData="M35,28 L25,79 M42,28 L37,81 M50,28 L50,82 M58,28 L63,81 M65,28 L75,79"
+        android:strokeColor="#9D174D"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round" />
+    <!-- Decorative White/Cream Hem Stripes -->
+    <path
+        android:pathData="M18,73 C32,78 68,78 82,73"
+        android:strokeColor="#FDF2F8"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M17,77 C32,82 68,82 83,77"
+        android:strokeColor="#FBCFE8"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round" />
+    <!-- Waistband -->
+    <path
+        android:pathData="M30,19 L70,19 L71,28 L29,28 Z"
+        android:fillColor="#BE185D"
+        android:strokeColor="#831843"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round" />
+    <!-- Waistband Belt Loops -->
+    <path
+        android:pathData="M37,19 L39,19 L39,28 L37,28 Z M61,19 L63,19 L63,28 L61,28 Z"
+        android:fillColor="#9D174D" />
+    <!-- Cute Ribbon Bow at Center Waist -->
+    <path
+        android:pathData="M50,24 L42,19 C40,21 40,26 42,28 Z"
+        android:fillColor="#FDE047"
+        android:strokeColor="#CA8A04"
+        android:strokeWidth="1.1" />
+    <path
+        android:pathData="M50,24 L58,19 C60,21 60,26 58,28 Z"
+        android:fillColor="#FDE047"
+        android:strokeColor="#CA8A04"
+        android:strokeWidth="1.1" />
+    <path
+        android:pathData="M48,24 L44,33 L47,34 L50,26 L53,34 L56,33 L52,24 Z"
+        android:fillColor="#FACC15"
+        android:strokeColor="#CA8A04"
+        android:strokeWidth="1" />
+    <path
+        android:pathData="M50,21.5 A2.5,2.5 0 1,1 49.9,21.5 Z"
+        android:fillColor="#FEF08A"
+        android:strokeColor="#CA8A04"
+        android:strokeWidth="1" />
+</vector>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Left & Right Sleeves -->
+    <path
+        android:pathData="M29,22 L12,35 L10,64 L21,67 L27,42 L29,42 Z"
+        android:fillColor="#2563EB"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M71,22 L88,35 L90,64 L79,67 L73,42 L71,42 Z"
+        android:fillColor="#2563EB"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round" />
+    <!-- Sweater Body -->
+    <path
+        android:pathData="M34,18 C39,24 61,24 66,18 L73,23 L73,80 L27,80 L27,23 Z"
+        android:fillColor="#3B82F6"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round" />
+    <!-- Ribbed Crew Neck Collar -->
+    <path
+        android:pathData="M34,18 C39,26 61,26 66,18 C64,14 60,13 50,13 C40,13 36,14 34,18 Z"
+        android:fillColor="#1D4ED8"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.4" />
+    <path
+        android:pathData="M40,16 L40,21 M45,17 L45,22 M50,17 L50,22 M55,17 L55,22 M60,16 L60,21"
+        android:strokeColor="#93C5FD"
+        android:strokeWidth="1.1"
+        android:strokeLineCap="round" />
+    <!-- Nordic Cream & Coral Knit Chest Band -->
+    <path
+        android:pathData="M28,33 L72,33 L72,49 L28,49 Z"
+        android:fillColor="#FEF3C7" />
+    <path
+        android:pathData="M28,36 L34,41 L40,36 L46,41 L52,36 L58,41 L64,36 L70,41"
+        android:strokeColor="#EF4444"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M33,44 L36,41 L39,44 L36,47 Z M47,44 L50,41 L53,44 L50,47 Z M61,44 L64,41 L67,44 L64,47 Z"
+        android:fillColor="#1D4ED8" />
+    <!-- Snowflake/Diamond Center Motif -->
+    <path
+        android:pathData="M50,54 L54,59 L50,64 L46,59 Z"
+        android:fillColor="#FBBF24"
+        android:strokeColor="#FEF3C7"
+        android:strokeWidth="1" />
+    <path
+        android:pathData="M37,56 L40,59 L37,62 L34,59 Z M63,56 L66,59 L63,62 L60,59 Z"
+        android:fillColor="#93C5FD" />
+    <!-- Sleeve Cuffs (ribbed) -->
+    <path
+        android:pathData="M10,60 L22,63 L21,69 L9,66 Z"
+        android:fillColor="#1D4ED8"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.2" />
+    <path
+        android:pathData="M90,60 L78,63 L79,69 L91,66 Z"
+        android:fillColor="#1D4ED8"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.2" />
+    <!-- Bottom Ribbed Hem -->
+    <path
+        android:pathData="M27,73 L73,73 L73,82 L27,82 Z"
+        android:fillColor="#1D4ED8"
+        android:strokeColor="#1E3A8A"
+        android:strokeWidth="1.5" />
+    <path
+        android:pathData="M33,74 L33,81 M39,74 L39,81 M45,74 L45,81 M51,74 L51,81 M57,74 L57,81 M63,74 L63,81 M69,74 L69,81"
+        android:strokeColor="#60A5FA"
+        android:strokeWidth="1.1"
+        android:strokeLineCap="round" />
+</vector>

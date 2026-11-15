@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "WordPack": {
+      "title": "WordPack",
+      "description": "Custom vocabulary pack created by parents for practicing English words.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Pack title in Czech or English" },
+        "description": { "type": "string", "description": "Optional short description of the pack" },
+        "emoji": { "type": "string", "description": "Emoji icon representing the pack" },
+        "colorIndex": { "type": "integer", "description": "Theme color index (0-5)" },
+        "enabledExercises": { "type": "array", "description": "List of enabled exercise type identifiers" },
+        "wordCount": { "type": "integer", "description": "Cached count of words in the pack" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["title", "description", "emoji", "colorIndex", "enabledExercises", "wordCount", "createdAt", "updatedAt"]
+    },
+    "VocabWord": {
+      "title": "VocabWord",
+      "description": "A vocabulary word entry inside a pack with optional sentence and AI-generated illustration.",
+      "type": "object",
+      "properties": {
+        "packId": { "type": "string", "description": "Parent pack document ID" },
+        "englishWord": { "type": "string", "description": "English target word" },
+        "czechTranslation": { "type": "string", "description": "Czech translation" },
+        "exampleSentence": { "type": "string", "description": "Optional English example sentence" },
+        "imageBase64": { "type": "string", "description": "Base64 JPEG thumbnail generated for the word" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["packId", "englishWord", "czechTranslation", "exampleSentence", "imageBase64", "createdAt", "updatedAt"]
+    },
+    "WordProgress": {
+      "title": "WordProgress",
+      "description": "Per-word practice analytics and mastery streak for the child.",
+      "type": "object",
+      "properties": {
+        "packId": { "type": "string", "description": "Parent pack ID" },
+        "englishWord": { "type": "string", "description": "English word snapshot" },
+        "czechTranslation": { "type": "string", "description": "Czech translation snapshot" },
+        "attempts": { "type": "integer", "description": "Total attempts on this word" },
+        "correctCount": { "type": "integer", "description": "Total correct answers" },
+        "streak": { "type": "integer", "description": "Current consecutive correct streak" },
+        "lastPracticedAt": { "type": "string", "format": "date-time", "description": "Last practice server timestamp" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["packId", "englishWord", "czechTranslation", "attempts", "correctCount", "streak", "lastPracticedAt", "createdAt", "updatedAt"]
+    },
+    "ExerciseTypeStats": {
+      "title": "ExerciseTypeStats",
+      "description": "Aggregated success rate and high score for a given exercise type.",
+      "type": "object",
+      "properties": {
+        "exerciseType": { "type": "string", "enum": ["MATCHING", "FILL_BLANK", "PRONUNCIATION", "SHOOTER"] },
+        "attempts": { "type": "integer", "description": "Total item attempts" },
+        "correctCount": { "type": "integer", "description": "Total correct answers" },
+        "sessionsCompleted": { "type": "integer", "description": "Completed practice sessions" },
+        "bestScore": { "type": "integer", "description": "Highest score achieved" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["exerciseType", "attempts", "correctCount", "sessionsCompleted", "bestScore", "createdAt", "updatedAt"]
+    },
+    "ParentSettings": {
+      "title": "ParentSettings",
+      "description": "Child profile name, star rewards total, and optional parental PIN gate settings.",
+      "type": "object",
+      "properties": {
+        "childName": { "type": "string", "description": "Child display name" },
+        "parentPinEnabled": { "type": "boolean", "description": "Whether PIN is required for Parent Mode" },
+        "parentPin": { "type": "string", "description": "Optional 4-digit parental PIN" },
+        "totalStars": { "type": "integer", "description": "Total stars earned by child" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["childName", "parentPinEnabled", "parentPin", "totalStars", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/packs/{packId}": {
+      "schema": { "$ref": "#/entities/WordPack" },
+      "description": "User-owned vocabulary packs"
+    },
+    "/users/{userId}/packs/{packId}/words/{wordId}": {
+      "schema": { "$ref": "#/entities/VocabWord" },
+      "description": "Words belonging to a vocabulary pack"
+    },
+    "/users/{userId}/wordStats/{wordId}": {
+      "schema": { "$ref": "#/entities/WordProgress" },
+      "description": "Learning progress and accuracy per word"
+    },
+    "/users/{userId}/exerciseStats/{exerciseType}": {
+      "schema": { "$ref": "#/entities/ExerciseTypeStats" },
+      "description": "Accuracy and session stats per exercise type"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/ParentSettings" },
+      "description": "Parental settings and child star count"
+    }
+  }
+}

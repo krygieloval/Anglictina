@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-slovka-a6aa9add-21b3-4a5d-a519-2044e66f57b5</string>
+    <string name="recaptcha_site_key" translatable="false">6LfBYiAuAAAAAELO-xUwJCUZnPxGh-I4tY-nYUU4</string>
+</resources>
