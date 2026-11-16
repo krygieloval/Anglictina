@@ -6,7 +6,6 @@ import {
   Mic,
   MicOff,
   RotateCcw,
-  Sparkles,
   Square,
 } from 'lucide-react';
 import {
@@ -565,14 +564,23 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
               : 'border border-amber-200 bg-amber-50 text-brand-amberDark'
           }`}
         >
-          <div className="flex items-center justify-center gap-2 font-bold">
-            {isPassed && <Sparkles className="h-5 w-5 shrink-0 text-brand-mint" />}
-            <span>{statusMessage}</span>
-          </div>
-          {scorePercent !== null && (
-            <p className="mt-1 text-xs font-extrabold opacity-85">
-              Hodnocení: {scorePercent} %
-            </p>
+          {scorePercent !== null && !isEvaluating && !hasError ? (
+            <div className="flex flex-col items-center justify-center gap-1.5">
+              <span
+                role="img"
+                aria-label={isPassed ? 'Výborně' : 'Zkus to znovu'}
+                className="select-none text-5xl leading-none"
+              >
+                {scorePercent >= 90 ? '🤩' : isPassed ? '😄' : scorePercent >= 45 ? '🙂' : '🤔'}
+              </span>
+              <p className="text-xs font-extrabold opacity-85">
+                Hodnocení: {scorePercent} %
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 font-bold">
+              <span>{statusMessage}</span>
+            </div>
           )}
           {(debugStep || debugError) && (isEvaluating || hasError) && (
             <div className="mt-2 space-y-0.5 border-t border-current/15 pt-2 text-left text-[11px] font-medium opacity-85 break-words">
