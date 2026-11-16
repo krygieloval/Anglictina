@@ -1,8 +1,7 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight,
   Edit3,
-  GripVertical,
   ImagePlus,
   Plus,
   Search,
@@ -85,15 +84,26 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [draftPackIds, setDraftPackIds] = useState<string[] | null>(null);
+  const packsRef = useRef(packs);
+  packsRef.current = packs;
+  const onReorderPacksRef = useRef(onReorderPacks);
+  onReorderPacksRef.current = onReorderPacks;
+
   const draftIdsRef = useRef<string[]>([]);
+  const suppressClickRef = useRef(false);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dragMetaRef = useRef<{
     activeId: string;
     pointerId: number;
+    pointerType: string;
+    startX: number;
+    startY: number;
     lastClientY: number;
     offsetY: number;
     beforeTop: number | null;
+    active: boolean;
     changed: boolean;
+    holdTimer: number | null;
   } | null>(null);
 
   const displayedPacks = useMemo(() => {
@@ -112,7 +122,7 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
 
   useLayoutEffect(() => {
     const meta = dragMetaRef.current;
-    if (!meta || meta.beforeTop === null) return;
+    if (!meta || !meta.active || meta.beforeTop === null) return;
     const activeEl = itemRefs.current.get(meta.activeId);
     if (!activeEl) {
       meta.beforeTop = null;
@@ -125,100 +135,20 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
     activeEl.style.transform = `translate3d(0, ${meta.offsetY}px, 0) scale(1.02)`;
   }, [draftPackIds]);
 
-  const handleGripPointerDown = (
-    e: React.PointerEvent<HTMLButtonElement>,
-    packId: string
-  ) => {
-    if (packs.length < 2) return;
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
+  const removeListenersRef = useRef<(() => void) | null>(null);
 
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // Ignore if pointer capture is unavailable
+  const cleanupDragSession = useCallback((commit: boolean) => {
+    if (removeListenersRef.current) {
+      removeListenersRef.current();
+      removeListenersRef.current = null;
     }
 
-    const ids = packs.map((p) => p.id);
-    draftIdsRef.current = ids;
-    dragMetaRef.current = {
-      activeId: packId,
-      pointerId: e.pointerId,
-      lastClientY: e.clientY,
-      offsetY: 0,
-      beforeTop: null,
-      changed: false,
-    };
-    setDraggingId(packId);
-    setDraftPackIds(ids);
-  };
-
-  const handleGripPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const meta = dragMetaRef.current;
-    if (!meta || e.pointerId !== meta.pointerId) return;
-
-    const dy = e.clientY - meta.lastClientY;
-    meta.lastClientY = e.clientY;
-    meta.offsetY += dy;
-
-    if (e.clientY < 88) {
-      const prevY = window.scrollY;
-      window.scrollBy(0, -10);
-      meta.offsetY += window.scrollY - prevY;
-    } else if (e.clientY > window.innerHeight - 96) {
-      const prevY = window.scrollY;
-      window.scrollBy(0, 10);
-      meta.offsetY += window.scrollY - prevY;
-    }
-
-    const activeEl = itemRefs.current.get(meta.activeId);
-    if (!activeEl) return;
-
-    activeEl.style.transform = `translate3d(0, ${meta.offsetY}px, 0) scale(1.02)`;
-
-    if (meta.beforeTop !== null) return;
-
-    const activeRect = activeEl.getBoundingClientRect();
-    const activeCenterY = activeRect.top + activeRect.height / 2;
-    const currentIds = draftIdsRef.current;
-    const idx = currentIds.indexOf(meta.activeId);
-    if (idx === -1) return;
-
-    let targetIdx = -1;
-    if (idx > 0) {
-      const prevEl = itemRefs.current.get(currentIds[idx - 1]);
-      if (prevEl) {
-        const prevRect = prevEl.getBoundingClientRect();
-        if (activeCenterY < prevRect.top + prevRect.height / 2) {
-          targetIdx = idx - 1;
-        }
-      }
-    }
-    if (targetIdx === -1 && idx < currentIds.length - 1) {
-      const nextEl = itemRefs.current.get(currentIds[idx + 1]);
-      if (nextEl) {
-        const nextRect = nextEl.getBoundingClientRect();
-        if (activeCenterY > nextRect.top + nextRect.height / 2) {
-          targetIdx = idx + 1;
-        }
-      }
-    }
-
-    if (targetIdx !== -1) {
-      meta.beforeTop = activeRect.top;
-      meta.changed = true;
-      const nextIds = [...currentIds];
-      [nextIds[idx], nextIds[targetIdx]] = [nextIds[targetIdx], nextIds[idx]];
-      draftIdsRef.current = nextIds;
-      setDraftPackIds(nextIds);
-    }
-  };
-
-  const finishDrag = (pointerId?: number) => {
     const meta = dragMetaRef.current;
     if (!meta) return;
-    if (pointerId !== undefined && pointerId !== meta.pointerId) return;
+
+    if (meta.holdTimer !== null) {
+      window.clearTimeout(meta.holdTimer);
+    }
 
     const activeEl = itemRefs.current.get(meta.activeId);
     if (activeEl) {
@@ -226,18 +156,196 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
     }
 
     const finalIds = draftIdsRef.current;
-    const didChange = meta.changed && finalIds.length > 0;
+    const wasActive = meta.active;
+    const didChange = commit && wasActive && meta.changed && finalIds.length > 0;
+
     dragMetaRef.current = null;
     draftIdsRef.current = [];
     setDraggingId(null);
     setDraftPackIds(null);
 
-    if (didChange) {
-      onReorderPacks(finalIds);
+    if (wasActive) {
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 140);
     }
+
+    if (didChange) {
+      onReorderPacksRef.current(finalIds);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cleanupDragSession(false);
+    };
+  }, [cleanupDragSession]);
+
+  const activateDrag = useCallback(() => {
+    const meta = dragMetaRef.current;
+    if (!meta || meta.active) return;
+
+    meta.active = true;
+    meta.holdTimer = null;
+    suppressClickRef.current = true;
+
+    if (
+      meta.pointerType === 'touch' &&
+      typeof navigator !== 'undefined' &&
+      typeof navigator.vibrate === 'function'
+    ) {
+      navigator.vibrate(15);
+    }
+
+    const ids = packsRef.current.map((p) => p.id);
+    draftIdsRef.current = ids;
+    setDraggingId(meta.activeId);
+    setDraftPackIds(ids);
+  }, []);
+
+  const handleBlockPointerDown = (
+    e: React.PointerEvent<HTMLDivElement>,
+    packId: string
+  ) => {
+    if (packs.length < 2) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[data-pack-action="true"]')) return;
+
+    cleanupDragSession(false);
+
+    const meta = {
+      activeId: packId,
+      pointerId: e.pointerId,
+      pointerType: e.pointerType,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastClientY: e.clientY,
+      offsetY: 0,
+      beforeTop: null as number | null,
+      active: false,
+      changed: false,
+      holdTimer: null as number | null,
+    };
+
+    if (e.pointerType === 'touch') {
+      meta.holdTimer = window.setTimeout(() => {
+        activateDrag();
+      }, 220);
+    }
+
+    dragMetaRef.current = meta;
+
+    const onMove = (ev: PointerEvent) => {
+      const current = dragMetaRef.current;
+      if (!current || ev.pointerId !== current.pointerId) return;
+
+      if (!current.active) {
+        const dist = Math.hypot(ev.clientX - current.startX, ev.clientY - current.startY);
+        if (current.pointerType === 'touch') {
+          if (dist > 8) {
+            removeListeners();
+            cleanupDragSession(false);
+          }
+          return;
+        }
+        if (dist <= 6) return;
+        current.lastClientY = current.startY;
+        activateDrag();
+      }
+
+      const dy = ev.clientY - current.lastClientY;
+      current.lastClientY = ev.clientY;
+      current.offsetY += dy;
+
+      if (ev.clientY < 88) {
+        const prevY = window.scrollY;
+        window.scrollBy(0, -10);
+        current.offsetY += window.scrollY - prevY;
+      } else if (ev.clientY > window.innerHeight - 96) {
+        const prevY = window.scrollY;
+        window.scrollBy(0, 10);
+        current.offsetY += window.scrollY - prevY;
+      }
+
+      const activeEl = itemRefs.current.get(current.activeId);
+      if (!activeEl) return;
+
+      activeEl.style.transform = `translate3d(0, ${current.offsetY}px, 0) scale(1.02)`;
+
+      if (current.beforeTop !== null) return;
+
+      const activeRect = activeEl.getBoundingClientRect();
+      const activeCenterY = activeRect.top + activeRect.height / 2;
+      const currentIds = draftIdsRef.current;
+      const idx = currentIds.indexOf(current.activeId);
+      if (idx === -1) return;
+
+      let targetIdx = -1;
+      if (idx > 0) {
+        const prevEl = itemRefs.current.get(currentIds[idx - 1]);
+        if (prevEl) {
+          const prevRect = prevEl.getBoundingClientRect();
+          if (activeCenterY < prevRect.top + prevRect.height / 2) {
+            targetIdx = idx - 1;
+          }
+        }
+      }
+      if (targetIdx === -1 && idx < currentIds.length - 1) {
+        const nextEl = itemRefs.current.get(currentIds[idx + 1]);
+        if (nextEl) {
+          const nextRect = nextEl.getBoundingClientRect();
+          if (activeCenterY > nextRect.top + nextRect.height / 2) {
+            targetIdx = idx + 1;
+          }
+        }
+      }
+
+      if (targetIdx !== -1) {
+        current.beforeTop = activeRect.top;
+        current.changed = true;
+        const nextIds = [...currentIds];
+        [nextIds[idx], nextIds[targetIdx]] = [nextIds[targetIdx], nextIds[idx]];
+        draftIdsRef.current = nextIds;
+        setDraftPackIds(nextIds);
+      }
+    };
+
+    const onTouchMove = (ev: TouchEvent) => {
+      if (dragMetaRef.current?.active && ev.cancelable) {
+        ev.preventDefault();
+      }
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      if (dragMetaRef.current && ev.pointerId !== dragMetaRef.current.pointerId) return;
+      removeListeners();
+      cleanupDragSession(true);
+    };
+
+    const onCancel = (ev: PointerEvent) => {
+      if (dragMetaRef.current && ev.pointerId !== dragMetaRef.current.pointerId) return;
+      removeListeners();
+      cleanupDragSession(false);
+    };
+
+    const removeListeners = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('touchmove', onTouchMove);
+    };
+
+    removeListenersRef.current = removeListeners;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
   };
 
-  const handleGripKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const handlePackKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, index: number) => {
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     e.preventDefault();
     const targetIndex = e.key === 'ArrowUp' ? index - 1 : index + 1;
@@ -337,16 +445,16 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
           <h2 className="font-display text-2xl font-bold text-brand-ink">Balíčky slovíček</h2>
           <p className="text-xs font-semibold text-brand-muted">
             {packs.length} balíčků • {words.length} slovíček celkem
-            {packs.length > 1 ? ' • Chyťte úchyt vlevo a posuňte pořadí' : ''}
           </p>
         </div>
         <button
           type="button"
           onClick={openCreateModal}
-          className="inline-flex items-center gap-1.5 rounded-2xl bg-brand-indigo px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-indigo/90 active:scale-95"
+          aria-label="Nový balíček"
+          title="Nový balíček"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-indigo text-white shadow-sm hover:bg-brand-indigo/90 active:scale-95"
         >
-          <Plus className="h-5 w-5" />
-          <span>Nový balíček</span>
+          <Plus className="h-6 w-6" />
         </button>
       </div>
 
@@ -365,66 +473,54 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
                   itemRefs.current.delete(pack.id);
                 }
               }}
-              className={`flex flex-col gap-3 rounded-3xl border bg-white p-4 sm:flex-row sm:items-center ${
+              onPointerDown={(e) => handleBlockPointerDown(e, pack.id)}
+              onKeyDown={(e) => handlePackKeyDown(e, idx)}
+              onContextMenu={(e) => {
+                if (draggingId || dragMetaRef.current) e.preventDefault();
+              }}
+              className={`flex flex-col gap-3 rounded-3xl border bg-white p-4 select-none sm:flex-row sm:items-center ${
                 isDragging
-                  ? 'relative z-20 border-brand-indigo bg-brand-indigoLight/15 shadow-2xl ring-2 ring-brand-indigo/40'
+                  ? 'relative z-20 cursor-grabbing touch-none border-brand-indigo bg-brand-indigoLight/15 shadow-2xl ring-2 ring-brand-indigo/40'
                   : 'border-brand-outline/60 shadow-sm transition-shadow'
               }`}
             >
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                {packs.length > 1 && (
-                  <button
-                    type="button"
-                    onPointerDown={(e) => handleGripPointerDown(e, pack.id)}
-                    onPointerMove={handleGripPointerMove}
-                    onPointerUp={(e) => finishDrag(e.pointerId)}
-                    onPointerCancel={(e) => finishDrag(e.pointerId)}
-                    onLostPointerCapture={() => finishDrag()}
-                    onKeyDown={(e) => handleGripKeyDown(e, idx)}
-                    aria-label={`Změnit pořadí balíčku ${pack.title}`}
-                    title="Chyťte a přetáhněte pro změnu pořadí"
-                    className={`flex h-12 w-9 shrink-0 touch-none select-none items-center justify-center rounded-xl transition ${
-                      isDragging
-                        ? 'cursor-grabbing bg-brand-indigo text-white'
-                        : 'cursor-grab text-brand-muted/70 hover:bg-slate-100 hover:text-brand-ink'
-                    }`}
-                  >
-                    <GripVertical className="h-5 w-5" />
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => onOpenPackDetail(pack.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                >
-                  <span className={`h-12 w-2.5 shrink-0 rounded-full ${palette.accentBg}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate font-display text-lg font-bold text-brand-ink">
-                        {pack.title}
-                      </h3>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${palette.containerBg} ${palette.onContainerText}`}
-                      >
-                        {count} slov
-                      </span>
-                    </div>
-                    {pack.description && (
-                      <p className="truncate text-xs text-brand-muted">{pack.description}</p>
-                    )}
-                    <p className="mt-1 text-[11px] font-bold text-brand-muted">
-                      Cvičení: {pack.enabledExercises.length} •{' '}
-                      {pack.assignedChildIds.length === 0
-                        ? 'Pro všechny děti'
-                        : `Pro ${pack.assignedChildIds.length} dětí`}
-                    </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (suppressClickRef.current) return;
+                  onOpenPackDetail(pack.id);
+                }}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <span className={`h-12 w-2.5 shrink-0 rounded-full ${palette.accentBg}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate font-display text-lg font-bold text-brand-ink">
+                      {pack.title}
+                    </h3>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${palette.containerBg} ${palette.onContainerText}`}
+                    >
+                      {count} slov
+                    </span>
                   </div>
-                  <ChevronRight className="h-5 w-5 shrink-0 text-brand-muted" />
-                </button>
-              </div>
+                  {pack.description && (
+                    <p className="truncate text-xs text-brand-muted">{pack.description}</p>
+                  )}
+                  <p className="mt-1 text-[11px] font-bold text-brand-muted">
+                    Cvičení: {pack.enabledExercises.length} •{' '}
+                    {pack.assignedChildIds.length === 0
+                      ? 'Pro všechny děti'
+                      : `Pro ${pack.assignedChildIds.length} dětí`}
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-brand-muted" />
+              </button>
 
-              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0">
+              <div
+                data-pack-action="true"
+                className="flex items-center justify-end gap-2 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0"
+              >
                 <button
                   type="button"
                   onClick={() => openEditModal(pack)}
