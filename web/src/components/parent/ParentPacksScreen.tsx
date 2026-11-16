@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight,
   Edit3,
+  GripVertical,
   ImagePlus,
   Plus,
   Search,
@@ -37,6 +38,7 @@ interface ParentPacksScreenProps {
     assignedChildIds: string[];
   }) => void;
   onDeletePack: (packId: string) => void;
+  onReorderPacks: (orderedPackIds: string[]) => void;
   onSaveWord: (data: {
     id?: string;
     packId: string;
@@ -54,6 +56,7 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
   onOpenPackDetail,
   onSavePack,
   onDeletePack,
+  onReorderPacks,
   onSaveWord,
   onDeleteWord,
 }) => {
@@ -79,6 +82,170 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
   const [busyWordId, setBusyWordId] = useState<string | null>(null);
   const quickFileRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetWordRef = useRef<VocabWord | null>(null);
+
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draftPackIds, setDraftPackIds] = useState<string[] | null>(null);
+  const draftIdsRef = useRef<string[]>([]);
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const dragMetaRef = useRef<{
+    activeId: string;
+    pointerId: number;
+    lastClientY: number;
+    offsetY: number;
+    beforeTop: number | null;
+    changed: boolean;
+  } | null>(null);
+
+  const displayedPacks = useMemo(() => {
+    if (!draftPackIds) return packs;
+    const byId = new Map(packs.map((p) => [p.id, p]));
+    const ordered: WordPack[] = [];
+    for (const id of draftPackIds) {
+      const p = byId.get(id);
+      if (p) ordered.push(p);
+    }
+    for (const p of packs) {
+      if (!draftPackIds.includes(p.id)) ordered.push(p);
+    }
+    return ordered;
+  }, [packs, draftPackIds]);
+
+  useLayoutEffect(() => {
+    const meta = dragMetaRef.current;
+    if (!meta || meta.beforeTop === null) return;
+    const activeEl = itemRefs.current.get(meta.activeId);
+    if (!activeEl) {
+      meta.beforeTop = null;
+      return;
+    }
+    const afterTop = activeEl.getBoundingClientRect().top;
+    const delta = afterTop - meta.beforeTop;
+    meta.offsetY -= delta;
+    meta.beforeTop = null;
+    activeEl.style.transform = `translate3d(0, ${meta.offsetY}px, 0) scale(1.02)`;
+  }, [draftPackIds]);
+
+  const handleGripPointerDown = (
+    e: React.PointerEvent<HTMLButtonElement>,
+    packId: string
+  ) => {
+    if (packs.length < 2) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if pointer capture is unavailable
+    }
+
+    const ids = packs.map((p) => p.id);
+    draftIdsRef.current = ids;
+    dragMetaRef.current = {
+      activeId: packId,
+      pointerId: e.pointerId,
+      lastClientY: e.clientY,
+      offsetY: 0,
+      beforeTop: null,
+      changed: false,
+    };
+    setDraggingId(packId);
+    setDraftPackIds(ids);
+  };
+
+  const handleGripPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const meta = dragMetaRef.current;
+    if (!meta || e.pointerId !== meta.pointerId) return;
+
+    const dy = e.clientY - meta.lastClientY;
+    meta.lastClientY = e.clientY;
+    meta.offsetY += dy;
+
+    if (e.clientY < 88) {
+      const prevY = window.scrollY;
+      window.scrollBy(0, -10);
+      meta.offsetY += window.scrollY - prevY;
+    } else if (e.clientY > window.innerHeight - 96) {
+      const prevY = window.scrollY;
+      window.scrollBy(0, 10);
+      meta.offsetY += window.scrollY - prevY;
+    }
+
+    const activeEl = itemRefs.current.get(meta.activeId);
+    if (!activeEl) return;
+
+    activeEl.style.transform = `translate3d(0, ${meta.offsetY}px, 0) scale(1.02)`;
+
+    if (meta.beforeTop !== null) return;
+
+    const activeRect = activeEl.getBoundingClientRect();
+    const activeCenterY = activeRect.top + activeRect.height / 2;
+    const currentIds = draftIdsRef.current;
+    const idx = currentIds.indexOf(meta.activeId);
+    if (idx === -1) return;
+
+    let targetIdx = -1;
+    if (idx > 0) {
+      const prevEl = itemRefs.current.get(currentIds[idx - 1]);
+      if (prevEl) {
+        const prevRect = prevEl.getBoundingClientRect();
+        if (activeCenterY < prevRect.top + prevRect.height / 2) {
+          targetIdx = idx - 1;
+        }
+      }
+    }
+    if (targetIdx === -1 && idx < currentIds.length - 1) {
+      const nextEl = itemRefs.current.get(currentIds[idx + 1]);
+      if (nextEl) {
+        const nextRect = nextEl.getBoundingClientRect();
+        if (activeCenterY > nextRect.top + nextRect.height / 2) {
+          targetIdx = idx + 1;
+        }
+      }
+    }
+
+    if (targetIdx !== -1) {
+      meta.beforeTop = activeRect.top;
+      meta.changed = true;
+      const nextIds = [...currentIds];
+      [nextIds[idx], nextIds[targetIdx]] = [nextIds[targetIdx], nextIds[idx]];
+      draftIdsRef.current = nextIds;
+      setDraftPackIds(nextIds);
+    }
+  };
+
+  const finishDrag = (pointerId?: number) => {
+    const meta = dragMetaRef.current;
+    if (!meta) return;
+    if (pointerId !== undefined && pointerId !== meta.pointerId) return;
+
+    const activeEl = itemRefs.current.get(meta.activeId);
+    if (activeEl) {
+      activeEl.style.transform = '';
+    }
+
+    const finalIds = draftIdsRef.current;
+    const didChange = meta.changed && finalIds.length > 0;
+    dragMetaRef.current = null;
+    draftIdsRef.current = [];
+    setDraggingId(null);
+    setDraftPackIds(null);
+
+    if (didChange) {
+      onReorderPacks(finalIds);
+    }
+  };
+
+  const handleGripKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const targetIndex = e.key === 'ArrowUp' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= packs.length) return;
+    const nextIds = packs.map((p) => p.id);
+    [nextIds[index], nextIds[targetIndex]] = [nextIds[targetIndex], nextIds[index]];
+    onReorderPacks(nextIds);
+  };
 
   const openCreateModal = () => {
     setEditingPack(null);
@@ -170,6 +337,7 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
           <h2 className="font-display text-2xl font-bold text-brand-ink">Balíčky slovíček</h2>
           <p className="text-xs font-semibold text-brand-muted">
             {packs.length} balíčků • {words.length} slovíček celkem
+            {packs.length > 1 ? ' • Chyťte úchyt vlevo a posuňte pořadí' : ''}
           </p>
         </div>
         <button
@@ -183,43 +351,78 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
       </div>
 
       <div className="space-y-3">
-        {packs.map((pack) => {
+        {displayedPacks.map((pack, idx) => {
           const palette = getPackPalette(pack.colorIndex);
           const count = wordsCountByPack.get(pack.id) ?? 0;
+          const isDragging = draggingId === pack.id;
           return (
             <div
               key={pack.id}
-              className="flex flex-col gap-3 rounded-3xl border border-brand-outline/60 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
+              ref={(el) => {
+                if (el) {
+                  itemRefs.current.set(pack.id, el);
+                } else {
+                  itemRefs.current.delete(pack.id);
+                }
+              }}
+              className={`flex flex-col gap-3 rounded-3xl border bg-white p-4 sm:flex-row sm:items-center ${
+                isDragging
+                  ? 'relative z-20 border-brand-indigo bg-brand-indigoLight/15 shadow-2xl ring-2 ring-brand-indigo/40'
+                  : 'border-brand-outline/60 shadow-sm transition-shadow'
+              }`}
             >
-              <button
-                type="button"
-                onClick={() => onOpenPackDetail(pack.id)}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
-              >
-                <span className={`h-12 w-2.5 shrink-0 rounded-full ${palette.accentBg}`} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate font-display text-lg font-bold text-brand-ink">
-                      {pack.title}
-                    </h3>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${palette.containerBg} ${palette.onContainerText}`}
-                    >
-                      {count} slov
-                    </span>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                {packs.length > 1 && (
+                  <button
+                    type="button"
+                    onPointerDown={(e) => handleGripPointerDown(e, pack.id)}
+                    onPointerMove={handleGripPointerMove}
+                    onPointerUp={(e) => finishDrag(e.pointerId)}
+                    onPointerCancel={(e) => finishDrag(e.pointerId)}
+                    onLostPointerCapture={() => finishDrag()}
+                    onKeyDown={(e) => handleGripKeyDown(e, idx)}
+                    aria-label={`Změnit pořadí balíčku ${pack.title}`}
+                    title="Chyťte a přetáhněte pro změnu pořadí"
+                    className={`flex h-12 w-9 shrink-0 touch-none select-none items-center justify-center rounded-xl transition ${
+                      isDragging
+                        ? 'cursor-grabbing bg-brand-indigo text-white'
+                        : 'cursor-grab text-brand-muted/70 hover:bg-slate-100 hover:text-brand-ink'
+                    }`}
+                  >
+                    <GripVertical className="h-5 w-5" />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => onOpenPackDetail(pack.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <span className={`h-12 w-2.5 shrink-0 rounded-full ${palette.accentBg}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate font-display text-lg font-bold text-brand-ink">
+                        {pack.title}
+                      </h3>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${palette.containerBg} ${palette.onContainerText}`}
+                      >
+                        {count} slov
+                      </span>
+                    </div>
+                    {pack.description && (
+                      <p className="truncate text-xs text-brand-muted">{pack.description}</p>
+                    )}
+                    <p className="mt-1 text-[11px] font-bold text-brand-muted">
+                      Cvičení: {pack.enabledExercises.length} •{' '}
+                      {pack.assignedChildIds.length === 0
+                        ? 'Pro všechny děti'
+                        : `Pro ${pack.assignedChildIds.length} dětí`}
+                    </p>
                   </div>
-                  {pack.description && (
-                    <p className="truncate text-xs text-brand-muted">{pack.description}</p>
-                  )}
-                  <p className="mt-1 text-[11px] font-bold text-brand-muted">
-                    Cvičení: {pack.enabledExercises.length} •{' '}
-                    {pack.assignedChildIds.length === 0
-                      ? 'Pro všechny děti'
-                      : `Pro ${pack.assignedChildIds.length} dětí`}
-                  </p>
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-brand-muted" />
-              </button>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-brand-muted" />
+                </button>
+              </div>
 
               <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0">
                 <button

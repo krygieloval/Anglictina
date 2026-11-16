@@ -305,6 +305,24 @@ export function App(): React.ReactElement {
     setToastMessage('Balíček byl odstraněn.');
   };
 
+  const handleReorderPacks = (orderedPackIds: string[]) => {
+    setStore((prev) => {
+      const byId = new Map(prev.packs.map((p) => [p.id, p]));
+      const reordered: WordPack[] = [];
+      for (const id of orderedPackIds) {
+        const found = byId.get(id);
+        if (found) {
+          reordered.push(found);
+          byId.delete(id);
+        }
+      }
+      for (const remaining of byId.values()) {
+        reordered.push(remaining);
+      }
+      return { ...prev, packs: reordered };
+    });
+  };
+
   const handleSaveWord = (data: {
     id?: string;
     packId: string;
@@ -579,6 +597,7 @@ export function App(): React.ReactElement {
           onOpenPackDetail={(id) => navigateTo({ parentDetailPackId: id }, 'push')}
           onSavePack={handleSavePack}
           onDeletePack={handleDeletePack}
+          onReorderPacks={handleReorderPacks}
           onSaveWord={handleSaveWord}
           onDeleteWord={handleDeleteWord}
         />
