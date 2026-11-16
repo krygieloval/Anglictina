@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Mic, MicOff, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Mic, MicOff, RotateCcw, Sparkles } from 'lucide-react';
 import {
   BrowserSpeechRecognition,
   createEnglishSpeechRecognizer,
@@ -37,6 +37,8 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isListening, setIsListening] = useState(false);
+  const [micActiveConfirmed, setMicActiveConfirmed] = useState(false);
+  const [timedOutNoSpeech, setTimedOutNoSpeech] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [lastHeard, setLastHeard] = useState<string | null>(null);
   const [matchPercent, setMatchPercent] = useState<number | null>(null);
@@ -44,38 +46,58 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
   const [outcomesMap, setOutcomesMap] = useState<Map<string, PracticeOutcomeItem>>(new Map());
 
   const recognizerRef = useRef<BrowserSpeechRecognition | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
+  const acceptedRef = useRef(false);
   const currentWord = queue[currentIndex];
 
-  const stopRecognizer = () => {
-    if (recognizerRef.current) {
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  const abortRecognizerSafely = () => {
+    clearSilenceTimer();
+    const rec = recognizerRef.current;
+    recognizerRef.current = null;
+    if (rec) {
+      rec.onstart = null;
+      rec.onaudiostart = null;
+      rec.onspeechstart = null;
+      rec.onresult = null;
+      rec.onerror = null;
+      rec.onend = null;
       try {
-        recognizerRef.current.abort();
+        rec.abort();
       } catch {
-        // Ignore abort errors
+        // Ignore abort errors on Safari/Chrome
       }
-      recognizerRef.current = null;
     }
     setIsListening(false);
+    setMicActiveConfirmed(false);
   };
 
   useEffect(() => {
-    stopRecognizer();
+    abortRecognizerSafely();
+    acceptedRef.current = false;
+    setTimedOutNoSpeech(false);
     setStatusMessage(null);
     setLastHeard(null);
     setMatchPercent(null);
     setIsAccepted(false);
-  }, [currentIndex]);
+  }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     return () => {
-      stopRecognizer();
+      abortRecognizerSafely();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!currentWord) return null;
 
   const finishOrNext = (finalOutcomes: Map<string, PracticeOutcomeItem>) => {
-    stopRecognizer();
+    abortRecognizerSafely();
     if (currentIndex + 1 < queue.length) {
       setCurrentIndex((i) => i + 1);
     } else {
@@ -87,7 +109,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     }
   };
 
-  const handleToggleMic = () => {
+  const startListeningSession = () => {
     if (!speechSupported) {
       setStatusMessage(
         'Tento prohlížeč nepodporuje rozpoznávání řeči přes mikrofon. Použij Chrome na Androidu nebo Safari na iOS.'
@@ -95,38 +117,63 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
       return;
     }
 
-    if (isListening) {
-      try {
-        recognizerRef.current?.stop();
-      } catch {
-        stopRecognizer();
-      }
-      return;
+    // Cancel any active TTS audio so iOS Safari frees the audio session for the mic
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      // Ignore
     }
 
-    stopRecognizer();
-    setStatusMessage('Poslouchám... Řekni anglické slovíčko nahlas!');
+    // Always abort any prior SpeechRecognition instance before starting a new one (iOS fix)
+    abortRecognizerSafely();
+
+    acceptedRef.current = false;
+    setTimedOutNoSpeech(false);
+    setStatusMessage('Spouštím mikrofon... Řekni slovíčko anglicky!');
     setLastHeard(null);
     setMatchPercent(null);
 
     const rec = createEnglishSpeechRecognizer({
-      onResults: (candidates) => {
+      onStart: () => {
+        setMicActiveConfirmed(true);
+        setStatusMessage('Mikrofon naslouchá! Řekni anglické slovíčko nahlas.');
+      },
+      onResults: ({ candidates, isFinal }) => {
+        if (acceptedRef.current) return;
+
+        // Reset 4s no-speech timer once browser detects any speech
+        clearSilenceTimer();
+
         const evalResult = evaluatePronunciation(currentWord.englishWord, candidates);
-        setLastHeard(evalResult.heardText || null);
-        setMatchPercent(evalResult.matchPercent);
-        setIsAccepted(evalResult.isAccepted);
+        if (evalResult.heardText) {
+          setLastHeard(evalResult.heardText);
+        }
 
         if (evalResult.isAccepted) {
-          setStatusMessage(`Výborně! Shoda ${evalResult.matchPercent} %`);
+          acceptedRef.current = true;
+          setMatchPercent(evalResult.matchPercent);
+          setIsAccepted(true);
+          setTimedOutNoSpeech(false);
+          setStatusMessage(
+            evalResult.isPhoneticMatch
+              ? 'Výborně! Výslovnost zní správně!'
+              : `Výborně! Shoda ${evalResult.matchPercent} %`
+          );
           setOutcomesMap((prev) => {
             const next = new Map(prev);
             next.set(currentWord.id, { word: currentWord, isCorrect: true });
             return next;
           });
-        } else {
+          abortRecognizerSafely();
+          return;
+        }
+
+        if (isFinal) {
+          setMatchPercent(evalResult.matchPercent);
+          setIsAccepted(false);
           setStatusMessage(
             evalResult.heardText
-              ? `Slyšel jsem „${evalResult.heardText}“ (${evalResult.matchPercent} %). Zkus to prosím ještě jednou!`
+              ? `Shoda ${evalResult.matchPercent} % — zkus to říct ještě jednou!`
               : 'Neslyšel jsem slovíčko zřetelně, zkus to prosím znovu!'
           );
           setOutcomesMap((prev) => {
@@ -135,14 +182,30 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
             next.set(currentWord.id, { word: currentWord, isCorrect: false });
             return next;
           });
+        } else {
+          // Interim partial result: keep listening and re-arm 4s timeout in case user pauses
+          silenceTimerRef.current = window.setTimeout(() => {
+            if (!acceptedRef.current) {
+              abortRecognizerSafely();
+              setTimedOutNoSpeech(true);
+              setStatusMessage(
+                'Po 4 sekundách se nepodařilo zachytit celou výslovnost. Zkus to znovu nebo slovo přeskoč.'
+              );
+            }
+          }, 4000);
         }
       },
       onError: (msg) => {
+        clearSilenceTimer();
         setStatusMessage(msg);
         setIsListening(false);
+        setMicActiveConfirmed(false);
+        setTimedOutNoSpeech(true);
       },
       onEnd: () => {
+        clearSilenceTimer();
         setIsListening(false);
+        setMicActiveConfirmed(false);
         recognizerRef.current = null;
       },
     });
@@ -156,10 +219,33 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     try {
       setIsListening(true);
       rec.start();
+      // 4-second safeguard timeout for iOS Safari / Android Chrome if browser hears nothing
+      silenceTimerRef.current = window.setTimeout(() => {
+        if (!acceptedRef.current) {
+          abortRecognizerSafely();
+          setTimedOutNoSpeech(true);
+          setStatusMessage(
+            'Prohlížeč po 4 sekundách nic nezachytil. Zkus to znovu nebo slovíčko přeskoč.'
+          );
+        }
+      }, 4000);
     } catch {
-      setIsListening(false);
+      abortRecognizerSafely();
+      setTimedOutNoSpeech(true);
       setStatusMessage('Mikrofon se nepodařilo aktivovat. Zkus to prosím znovu.');
     }
+  };
+
+  const handleToggleMic = () => {
+    if (isListening) {
+      try {
+        recognizerRef.current?.stop();
+      } catch {
+        abortRecognizerSafely();
+      }
+      return;
+    }
+    startListeningSession();
   };
 
   const handleAdvance = () => {
@@ -179,7 +265,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
         <button
           type="button"
           onClick={() => {
-            stopRecognizer();
+            abortRecognizerSafely();
             onBack();
           }}
           aria-label="Zpět"
@@ -250,12 +336,35 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
           </button>
         </div>
 
+        {/* Live listening indicator */}
+        {isListening && (
+          <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-brand-coralLight px-3.5 py-1 text-xs font-extrabold text-brand-coralDark">
+            <span className="flex items-end gap-0.5 h-3.5">
+              <span className="w-1 h-2 bg-brand-coral rounded-full animate-bounce" />
+              <span className="w-1 h-3.5 bg-brand-coral rounded-full animate-pulse" />
+              <span className="w-1 h-2.5 bg-brand-coral rounded-full animate-bounce" />
+            </span>
+            <span>
+              {micActiveConfirmed ? 'Mikrofon naslouchá (EN-US)...' : 'Připojuji mikrofon...'}
+            </span>
+          </div>
+        )}
+
         <p className="mt-2 text-center text-sm font-bold text-brand-muted">
           {isAccepted
             ? 'Skvělá výslovnost!'
             : isListening
-            ? 'Naslouchám... Klepni znovu pro zastavení'
+            ? 'Řekni slovo nahlas — klepnutím zastavíš'
             : 'Klepni na mikrofon a řekni slovo anglicky'}
+        </p>
+
+        {/* Small diagnostic caption showing exact browser transcript */}
+        <p className="mt-1 min-h-[18px] text-center text-xs font-semibold text-brand-muted">
+          {lastHeard
+            ? `Slyšel jsem: „${lastHeard}“`
+            : isListening
+            ? 'Slyšel jsem: (čekám na hlas...)'
+            : ''}
         </p>
       </div>
 
@@ -266,6 +375,8 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
               ? 'bg-brand-mintLight text-brand-mintDark'
               : matchPercent !== null && !isAccepted
               ? 'bg-amber-50 border border-amber-200 text-brand-amberDark'
+              : timedOutNoSpeech
+              ? 'bg-amber-50 border border-amber-200 text-brand-amberDark'
               : 'bg-white border border-brand-outline text-brand-ink'
           }`}
         >
@@ -273,30 +384,40 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
             {isAccepted && <Sparkles className="h-5 w-5 text-brand-mint shrink-0" />}
             <span>{statusMessage}</span>
           </div>
-          {lastHeard && !isAccepted && (
-            <p className="mt-1 text-xs opacity-80">Rozpoznaný text: „{lastHeard}“</p>
-          )}
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={handleAdvance}
-        className={`flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl font-bold shadow-sm transition active:scale-95 ${
-          isAccepted
-            ? 'bg-brand-mint text-white'
-            : 'border border-brand-outline bg-white text-brand-ink hover:bg-slate-50'
-        }`}
-      >
-        <span>
-          {currentIndex + 1 < queue.length
-            ? isAccepted
-              ? 'Další slovíčko'
-              : 'Přeskočit slovíčko'
-            : 'Dokončit cvičení'}
-        </span>
-        <ArrowRight className="h-5 w-5" />
-      </button>
+      <div className="flex gap-2.5">
+        {timedOutNoSpeech && !isAccepted && speechSupported && (
+          <button
+            type="button"
+            onClick={startListeningSession}
+            className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-indigo font-bold text-white shadow-sm active:scale-95"
+          >
+            <RotateCcw className="h-5 w-5" />
+            <span>Zkusit znovu</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={handleAdvance}
+          className={`flex h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl font-bold shadow-sm transition active:scale-95 ${
+            isAccepted
+              ? 'bg-brand-mint text-white'
+              : 'border border-brand-outline bg-white text-brand-ink hover:bg-slate-50'
+          }`}
+        >
+          <span>
+            {currentIndex + 1 < queue.length
+              ? isAccepted
+                ? 'Další slovíčko'
+                : 'Přeskočit'
+              : 'Dokončit cvičení'}
+          </span>
+          <ArrowRight className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   );
 };
