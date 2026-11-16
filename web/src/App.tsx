@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, FolderKanban, Settings } from 'lucide-react';
+import { BarChart3, FolderKanban, Share, Settings, X } from 'lucide-react';
 import { ChildProfileSwitcherModal } from './components/ChildProfileSwitcherModal';
 import { ParentalGateModal } from './components/ParentalGateModal';
 import { TopHeader } from './components/TopHeader';
@@ -17,6 +17,11 @@ import { ParentPackDetailScreen } from './components/parent/ParentPackDetailScre
 import { ParentPacksScreen } from './components/parent/ParentPacksScreen';
 import { ParentProgressScreen } from './components/parent/ParentProgressScreen';
 import { ParentSettingsScreen } from './components/parent/ParentSettingsScreen';
+import {
+  getPwaInstallState,
+  subscribePwaInstall,
+  triggerNativePwaInstall,
+} from './services/pwaInstall';
 import {
   computeParentAnalytics,
   createInitialStore,
@@ -75,6 +80,28 @@ export function App(): React.ReactElement {
   const [showGate, setShowGate] = useState(false);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [pwaState, setPwaState] = useState(() => getPwaInstallState());
+  const [showIosInstallGuide, setShowIosInstallGuide] = useState(false);
+
+  useEffect(() => {
+    setPwaState(getPwaInstallState());
+    return subscribePwaInstall(() => {
+      setPwaState(getPwaInstallState());
+    });
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (pwaState.canNativeInstall) {
+      const outcome = await triggerNativePwaInstall();
+      if (outcome === 'accepted') {
+        setToastMessage('Aplikace Slovíčka se instaluje na plochu.');
+      }
+      return;
+    }
+    if (pwaState.isIosInstallable) {
+      setShowIosInstallGuide(true);
+    }
+  };
 
   const navRef = useRef<NavSnapshot>(INITIAL_NAV);
   const depthRef = useRef<number>(0);
@@ -643,6 +670,10 @@ export function App(): React.ReactElement {
       <TopHeader
         activeChild={activeChild}
         currentMode={mode}
+        showInstallButton={
+          !pwaState.isInstalled && (pwaState.canNativeInstall || pwaState.isIosInstallable)
+        }
+        onInstallClick={handleInstallClick}
         onOpenProfileSwitcher={() => navigateTo({ showProfileSwitcher: true }, 'push')}
         onSwitchMode={handleSwitchMode}
       />
@@ -719,6 +750,61 @@ export function App(): React.ReactElement {
           }}
           onDismiss={() => navigateUpOneLevel({ showProfileSwitcher: false })}
         />
+      )}
+
+      {showIosInstallGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/icon-192.png"
+                  alt="Slovíčka"
+                  className="h-10 w-10 rounded-xl shadow-sm"
+                />
+                <h3 className="font-display text-lg font-bold text-brand-ink">
+                  Nainstalovat aplikaci
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowIosInstallGuide(false)}
+                aria-label="Zavřít"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-brand-muted hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <ol className="mt-4 space-y-2.5 text-sm font-semibold text-brand-ink">
+              <li className="flex items-start gap-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-indigoLight text-xs font-extrabold text-brand-indigoDark">
+                  1
+                </span>
+                <span>
+                  V Safari klepněte na tlačítko{' '}
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-1.5 py-0.5 font-bold">
+                    <Share className="h-3.5 w-3.5 text-brand-indigo" /> Sdílet
+                  </span>
+                </span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-indigoLight text-xs font-extrabold text-brand-indigoDark">
+                  2
+                </span>
+                <span>
+                  Zvolte <strong>Přidat na plochu</strong> a potvrďte <strong>Přidat</strong>.
+                </span>
+              </li>
+            </ol>
+            <button
+              type="button"
+              onClick={() => setShowIosInstallGuide(false)}
+              className="mt-5 w-full rounded-2xl bg-brand-indigo py-2.5 font-bold text-white"
+            >
+              Rozumím
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
