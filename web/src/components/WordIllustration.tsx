@@ -20,11 +20,22 @@ const ROOM_AND_VERB_SVG_MAP: Record<string, string> = {
   'living room': '/word-art/img_word_living_room.svg',
   sofa: '/word-art/img_word_sofa.svg',
   table: '/word-art/img_word_table.svg',
-  catch: '/word-art/img_word_catch.svg',
-  dive: '/word-art/img_word_dive.svg',
+  catch: '/word-art/img_word_catch.jpg',
+  dive: '/word-art/img_word_dive.jpg',
+  rice: '/word-art/img_word_rice.jpg',
   sing: '/word-art/img_word_sing.svg',
   song: '/word-art/img_word_sing.svg',
+  sweater: '/word-art/img_word_sweater.jpg',
 };
+
+function resolveBundledArtUrl(englishWord: string, czechTranslation: string): string | undefined {
+  const key = englishWord.trim().toLowerCase();
+  const cz = czechTranslation.trim().toLowerCase();
+  if (key === 'chicken' && (cz.includes('maso') || cz.includes('pečen'))) {
+    return '/word-art/img_word_roast_chicken.jpg';
+  }
+  return ROOM_AND_VERB_SVG_MAP[key];
+}
 
 function CustomWordSvg({
   englishWord,
@@ -77,21 +88,6 @@ function CustomWordSvg({
     );
   }
 
-  // Roast chicken in Unit 7 vs live Chicken in Unit 6
-  if (key === 'chicken' && (cz.includes('maso') || cz.includes('pečen'))) {
-    return (
-      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
-        <ellipse cx="50" cy="73" rx="38" ry="12" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="2.5" />
-        <ellipse cx="50" cy="70" rx="32" ry="8" fill="#F8FAFC" />
-        <path d="M25,62 C25,40 42,32 56,34 C72,36 78,50 75,64 C65,70 35,70 25,62 Z" fill="#D97706" stroke="#92400E" strokeWidth="2.5" />
-        <path d="M38,44 C46,38 58,39 64,45" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" fill="none" />
-        <path d="M68,54 L84,42" stroke="#FEF3C7" strokeWidth="6" strokeLinecap="round" />
-        <circle cx="85" cy="40" r="4.5" fill="#FEF3C7" stroke="#CBD5E1" strokeWidth="1.5" />
-        <circle cx="32" cy="64" r="5" fill="#22C55E" />
-        <circle cx="67" cy="65" r="4.5" fill="#EF4444" />
-      </svg>
-    );
-  }
 
   // Trampoline
   if (key === 'trampoline') {
@@ -127,18 +123,6 @@ function CustomWordSvg({
     );
   }
 
-  // Sweater
-  if (key === 'sweater') {
-    return (
-      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
-        <path d="M34,18 L66,18 L86,38 L76,52 L68,42 L68,82 L32,82 L32,42 L24,52 L14,38 Z" fill="#EF4444" stroke="#991B1B" strokeWidth="2.5" strokeLinejoin="round" />
-        <path d="M36,18 C42,26 58,26 64,18" fill="none" stroke="#FEE2E2" strokeWidth="3.5" strokeLinecap="round" />
-        <path d="M32,46 L68,46 M32,56 L68,56" stroke="#FDE047" strokeWidth="4" />
-        <rect x="32" y="76" width="36" height="6" rx="2" fill="#B91C1C" />
-      </svg>
-    );
-  }
-
   // Skirt
   if (key === 'skirt') {
     return (
@@ -160,8 +144,9 @@ export const WordIllustration: React.FC<WordIllustrationProps> = ({
   isLoading = false,
   className = 'w-32 h-32',
 }) => {
-  const key = englishWord.trim().toLowerCase();
-  const bundledSvgUrl = !imageDataUrl ? ROOM_AND_VERB_SVG_MAP[key] : undefined;
+  const bundledSvgUrl = !imageDataUrl
+    ? resolveBundledArtUrl(englishWord, czechTranslation)
+    : undefined;
   const customSvg = !imageDataUrl && !bundledSvgUrl
     ? CustomWordSvg({ englishWord, czechTranslation })
     : null;
@@ -192,7 +177,7 @@ export const WordIllustration: React.FC<WordIllustrationProps> = ({
         <img
           src={bundledSvgUrl}
           alt={czechTranslation || englishWord}
-          className="h-full w-full object-contain"
+          className={`h-full w-full ${bundledSvgUrl.endsWith('.jpg') ? 'object-cover' : 'object-contain'}`}
         />
       ) : customSvg ? (
         customSvg
