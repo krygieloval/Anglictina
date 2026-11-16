@@ -142,7 +142,7 @@ export const MemoryGame: React.FC<MemoryGameProps> = ({ words, onBack, onFinish 
               key={card.id}
               type="button"
               onClick={() => handleCardTap(card)}
-              className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl border-2 p-2 shadow-sm transition active:scale-95 ${
+              className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl border-2 p-1 shadow-sm transition active:scale-95 ${
                 isMatched
                   ? 'border-brand-mint bg-brand-mintLight'
                   : isFlipped

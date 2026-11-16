@@ -23,7 +23,7 @@ function CustomWordSvg({
   if (key === 'orange' && cz.includes('oranž')) {
     const c = COLOR_HEX_MAP.orange_color;
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-2">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <circle cx="50" cy="50" r="38" fill={c.fill} stroke={c.ring} strokeWidth="4" />
         <ellipse cx="38" cy="36" rx="10" ry="6" fill="white" fillOpacity="0.3" transform="rotate(-25 38 36)" />
       </svg>
@@ -32,7 +32,7 @@ function CustomWordSvg({
   if (COLOR_HEX_MAP[key]) {
     const c = COLOR_HEX_MAP[key];
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-2">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <circle cx="50" cy="50" r="38" fill={c.fill} stroke={c.ring} strokeWidth="4" />
         <ellipse cx="38" cy="36" rx="10" ry="6" fill="white" fillOpacity={key === 'white' ? '0' : '0.3'} transform="rotate(-25 38 36)" />
       </svg>
@@ -43,7 +43,7 @@ function CustomWordSvg({
   if (NUMBER_VALUE_MAP[key]) {
     const n = NUMBER_VALUE_MAP[key];
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-2">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <rect x="12" y="12" width="76" height="76" rx="22" fill={n.bg} stroke={n.fg} strokeWidth="3.5" />
         <text
           x="50"
@@ -63,7 +63,7 @@ function CustomWordSvg({
   // Roast chicken in Unit 7 vs live Chicken in Unit 6
   if (key === 'chicken' && (cz.includes('maso') || cz.includes('pečen'))) {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <ellipse cx="50" cy="73" rx="38" ry="12" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="2.5" />
         <ellipse cx="50" cy="70" rx="32" ry="8" fill="#F8FAFC" />
         <path d="M25,62 C25,40 42,32 56,34 C72,36 78,50 75,64 C65,70 35,70 25,62 Z" fill="#D97706" stroke="#92400E" strokeWidth="2.5" />
@@ -79,7 +79,7 @@ function CustomWordSvg({
   // Trampoline
   if (key === 'trampoline') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.05]">
         <ellipse cx="50" cy="84" rx="40" ry="7" fill="#BBF7D0" />
         <path d="M16,22 C28,15 72,15 84,22 L84,56 C72,49 28,49 16,56 Z" fill="#93C5FD" fillOpacity="0.22" />
         <path d="M26,20 L26,53 M38,18 L38,51 M50,17 L50,50 M62,18 L62,51 M74,20 L74,53" stroke="#93C5FD" strokeWidth="1.2" />
@@ -101,7 +101,7 @@ function CustomWordSvg({
   // Skipping rope
   if (key === 'skipping rope') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <path d="M22,26 C10,55 24,86 50,86 C76,86 90,55 78,26" stroke="#F97316" strokeWidth="5.5" strokeLinecap="round" fill="none" />
         <path d="M22,26 C10,55 24,86 50,86 C76,86 90,55 78,26" stroke="#FDBA74" strokeWidth="2" strokeLinecap="round" fill="none" strokeDasharray="4 4" />
         <rect x="17" y="12" width="10" height="22" rx="4" fill="#3B82F6" stroke="#1E40AF" strokeWidth="2" />
@@ -113,7 +113,7 @@ function CustomWordSvg({
   // Sofa
   if (key === 'sofa') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <rect x="16" y="72" width="7" height="10" rx="2" fill="#78350F" />
         <rect x="77" y="72" width="7" height="10" rx="2" fill="#78350F" />
         <rect x="16" y="28" width="68" height="30" rx="10" fill="#0D9488" stroke="#115E59" strokeWidth="2" />
@@ -129,7 +129,7 @@ function CustomWordSvg({
   // Table
   if (key === 'table') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <rect x="20" y="46" width="8" height="38" rx="2" fill="#92400E" />
         <rect x="72" y="46" width="8" height="38" rx="2" fill="#92400E" />
         <rect x="18" y="42" width="64" height="8" rx="2" fill="#78350F" />
@@ -141,7 +141,7 @@ function CustomWordSvg({
   // Dining room
   if (key === 'dining room') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <rect x="12" y="44" width="14" height="32" rx="3" fill="#B45309" />
         <rect x="74" y="44" width="14" height="32" rx="3" fill="#B45309" />
         <rect x="22" y="48" width="56" height="8" rx="3" fill="#92400E" />
@@ -158,7 +158,7 @@ function CustomWordSvg({
   // Garden (no house, flowers + tree + fence)
   if (key === 'garden') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.05]">
         <rect x="8" y="64" width="84" height="24" rx="8" fill="#86EFAC" />
         <rect x="16" y="46" width="6" height="26" fill="#92400E" />
         <circle cx="19" cy="34" r="16" fill="#22C55E" />
@@ -179,7 +179,7 @@ function CustomWordSvg({
   // Sweater
   if (key === 'sweater') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <path d="M34,18 L66,18 L86,38 L76,52 L68,42 L68,82 L32,82 L32,42 L24,52 L14,38 Z" fill="#EF4444" stroke="#991B1B" strokeWidth="2.5" strokeLinejoin="round" />
         <path d="M36,18 C42,26 58,26 64,18" fill="none" stroke="#FEE2E2" strokeWidth="3.5" strokeLinecap="round" />
         <path d="M32,46 L68,46 M32,56 L68,56" stroke="#FDE047" strokeWidth="4" />
@@ -191,7 +191,7 @@ function CustomWordSvg({
   // Skirt
   if (key === 'skirt') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <rect x="31" y="18" width="38" height="10" rx="3" fill="#BE185D" />
         <path d="M31,28 L69,28 L84,80 C65,86 35,86 16,80 Z" fill="#F472B6" stroke="#BE185D" strokeWidth="2.5" strokeLinejoin="round" />
         <path d="M42,28 L34,82 M50,28 L50,84 M58,28 L66,82" stroke="#DB2777" strokeWidth="2" />
@@ -202,7 +202,7 @@ function CustomWordSvg({
   // Dive
   if (key === 'dive') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.05]">
         <path d="M8,68 C22,60 36,76 50,68 C64,60 78,76 92,68 L92,88 L8,88 Z" fill="#38BDF8" />
         <path d="M8,76 C22,70 36,84 50,76 C64,70 78,84 92,76" fill="none" stroke="#BAE6FD" strokeWidth="2.5" />
         <line x1="68" y1="22" x2="40" y2="54" stroke="#F97316" strokeWidth="8" strokeLinecap="round" />
@@ -216,7 +216,7 @@ function CustomWordSvg({
   // Catch
   if (key === 'catch') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <circle cx="62" cy="24" r="9" fill="#FDBA74" stroke="#9A3412" strokeWidth="2" />
         <path d="M54,35 L70,35 L74,64 L52,64 Z" fill="#3B82F6" />
         <path d="M54,40 L34,36 M70,40 L44,44" stroke="#FDBA74" strokeWidth="6" strokeLinecap="round" />
@@ -230,7 +230,7 @@ function CustomWordSvg({
   // Sing
   if (key === 'sing' || key === 'song') {
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1.5">
+      <svg viewBox="0 0 100 100" className="w-full h-full scale-[1.06]">
         <circle cx="44" cy="32" r="12" fill="#FDBA74" stroke="#9A3412" strokeWidth="2" />
         <circle cx="40" cy="30" r="1.5" fill="#1E293B" />
         <circle cx="48" cy="30" r="1.5" fill="#1E293B" />
@@ -264,7 +264,7 @@ export const WordIllustration: React.FC<WordIllustrationProps> = ({
 
   return (
     <div
-      className={`relative flex items-center justify-center overflow-hidden rounded-2xl border border-brand-outline/70 ${
+      className={`word-art-container relative flex items-center justify-center overflow-hidden rounded-2xl border border-brand-outline/70 ${
         hasArt
           ? 'bg-gradient-to-br from-[#FBF8F1] to-[#F6F2E9]'
           : 'bg-gradient-to-br from-brand-indigoLight/50 to-brand-coralLight/40'
@@ -279,7 +279,7 @@ export const WordIllustration: React.FC<WordIllustrationProps> = ({
         <img
           src={imageDataUrl}
           alt={czechTranslation || englishWord}
-          className="h-full w-full object-contain p-1"
+          className="h-full w-full object-cover scale-[1.06]"
         />
       ) : customSvg ? (
         customSvg
@@ -287,7 +287,7 @@ export const WordIllustration: React.FC<WordIllustrationProps> = ({
         <span
           role="img"
           aria-label={czechTranslation || englishWord}
-          className="select-none text-5xl sm:text-6xl leading-none"
+          className="word-art-emoji select-none"
         >
           {emoji}
         </span>

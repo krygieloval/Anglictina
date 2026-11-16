@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, FolderKanban, Settings } from 'lucide-react';
 import { ChildProfileSwitcherModal } from './components/ChildProfileSwitcherModal';
 import { ParentalGateModal } from './components/ParentalGateModal';
@@ -47,6 +47,24 @@ type ChildScreen =
       movesCount?: number;
     };
 
+interface NavSnapshot {
+  mode: AppMode;
+  childScreen: ChildScreen;
+  parentTab: ParentTab;
+  parentDetailPackId: string | null;
+  showGate: boolean;
+  showProfileSwitcher: boolean;
+}
+
+const INITIAL_NAV: NavSnapshot = {
+  mode: 'CHILD',
+  childScreen: { kind: 'HOME' },
+  parentTab: 'PACKS',
+  parentDetailPackId: null,
+  showGate: false,
+  showProfileSwitcher: false,
+};
+
 export function App(): React.ReactElement {
   const [store, setStore] = useState<SlovickaStoreData>(() => loadStore());
   const [mode, setMode] = useState<AppMode>('CHILD');
@@ -57,6 +75,70 @@ export function App(): React.ReactElement {
   const [showGate, setShowGate] = useState(false);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const navRef = useRef<NavSnapshot>(INITIAL_NAV);
+  const depthRef = useRef<number>(0);
+
+  const applyNavState = useCallback((snap: NavSnapshot) => {
+    navRef.current = snap;
+    setMode(snap.mode);
+    setChildScreen(snap.childScreen);
+    setParentTab(snap.parentTab);
+    setParentDetailPackId(snap.parentDetailPackId);
+    setShowGate(snap.showGate);
+    setShowProfileSwitcher(snap.showProfileSwitcher);
+  }, []);
+
+  const navigateTo = useCallback(
+    (patch: Partial<NavSnapshot>, historyMode: 'push' | 'replace' = 'push') => {
+      const next: NavSnapshot = { ...navRef.current, ...patch };
+      applyNavState(next);
+      if (typeof window === 'undefined' || !window.history) return;
+      if (historyMode === 'push') {
+        const nextDepth = depthRef.current + 1;
+        depthRef.current = nextDepth;
+        window.history.pushState({ slovickaNav: next, depth: nextDepth }, '');
+      } else {
+        window.history.replaceState({ slovickaNav: next, depth: depthRef.current }, '');
+      }
+    },
+    [applyNavState]
+  );
+
+  const navigateUpOneLevel = useCallback(
+    (fallbackPatch: Partial<NavSnapshot>) => {
+      if (typeof window !== 'undefined' && window.history && depthRef.current > 0) {
+        window.history.back();
+        return;
+      }
+      const next: NavSnapshot = { ...navRef.current, ...fallbackPatch };
+      applyNavState(next);
+      if (typeof window !== 'undefined' && window.history) {
+        window.history.replaceState({ slovickaNav: next, depth: 0 }, '');
+      }
+    },
+    [applyNavState]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.history) return;
+    window.history.replaceState({ slovickaNav: navRef.current, depth: 0 }, '');
+
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { slovickaNav?: NavSnapshot; depth?: number } | null;
+      if (state?.slovickaNav) {
+        applyNavState(state.slovickaNav);
+        depthRef.current = typeof state.depth === 'number' ? state.depth : 0;
+      } else {
+        depthRef.current = 0;
+        applyNavState(INITIAL_NAV);
+        window.history.replaceState({ slovickaNav: INITIAL_NAV, depth: 0 }, '');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [applyNavState]);
 
   useEffect(() => {
     saveStore(store);
@@ -117,15 +199,23 @@ export function App(): React.ReactElement {
       ...prev,
       settings: { ...prev.settings, activeChildId: childId },
     }));
-    setChildScreen({ kind: 'HOME' });
   };
 
   const handleSwitchMode = (target: AppMode) => {
     if (target === 'PARENT' && mode !== 'PARENT') {
-      setShowGate(true);
+      navigateTo({ showGate: true }, 'push');
     } else if (target === 'CHILD') {
-      setMode('CHILD');
-      setChildScreen({ kind: 'HOME' });
+      if (mode !== 'CHILD' || childScreen.kind !== 'HOME') {
+        navigateTo(
+          {
+            mode: 'CHILD',
+            childScreen: { kind: 'HOME' },
+            parentDetailPackId: null,
+            showGate: false,
+          },
+          'push'
+        );
+      }
     }
   };
 
@@ -147,15 +237,20 @@ export function App(): React.ReactElement {
         score
       )
     );
-    setChildScreen({
-      kind: 'SUMMARY',
-      packId,
-      exerciseType,
-      outcomes,
-      starsEarned,
-      score,
-      movesCount,
-    });
+    navigateTo(
+      {
+        childScreen: {
+          kind: 'SUMMARY',
+          packId,
+          exerciseType,
+          outcomes,
+          starsEarned,
+          score,
+          movesCount,
+        },
+      },
+      'replace'
+    );
   };
 
   const handleSavePack = (data: {
@@ -204,7 +299,9 @@ export function App(): React.ReactElement {
       packs: prev.packs.filter((p) => p.id !== packId),
       words: prev.words.filter((w) => w.packId !== packId),
     }));
-    if (parentDetailPackId === packId) setParentDetailPackId(null);
+    if (parentDetailPackId === packId) {
+      navigateUpOneLevel({ parentDetailPackId: null });
+    }
     setToastMessage('Balíček byl odstraněn.');
   };
 
@@ -313,20 +410,23 @@ export function App(): React.ReactElement {
           packs={childVisiblePacks}
           packWordCounts={packWordCounts}
           packSummaries={packSummariesMap}
-          onOpenPack={(packId) => setChildScreen({ kind: 'PACK_HUB', packId })}
+          onOpenPack={(packId) => navigateTo({ childScreen: { kind: 'PACK_HUB', packId } }, 'push')}
         />
       );
     }
 
     const pack = store.packs.find((p) => p.id === childScreen.packId);
+    const isPackVisibleToChild =
+      Boolean(pack) &&
+      (pack!.assignedChildIds.length === 0 || pack!.assignedChildIds.includes(activeChild.id));
     const packWords = wordsByPack.get(childScreen.packId) ?? [];
-    if (!pack) {
+    if (!pack || !isPackVisibleToChild) {
       return (
         <ChildHomeScreen
           packs={childVisiblePacks}
           packWordCounts={packWordCounts}
           packSummaries={packSummariesMap}
-          onOpenPack={(packId) => setChildScreen({ kind: 'PACK_HUB', packId })}
+          onOpenPack={(packId) => navigateTo({ childScreen: { kind: 'PACK_HUB', packId } }, 'push')}
         />
       );
     }
@@ -336,14 +436,19 @@ export function App(): React.ReactElement {
         <ChildPackHubScreen
           pack={pack}
           words={packWords}
-          onBack={() => setChildScreen({ kind: 'HOME' })}
+          onBack={() => navigateUpOneLevel({ childScreen: { kind: 'HOME' } })}
           onStartExercise={(exerciseType) =>
-            setChildScreen({
-              kind: 'EXERCISE',
-              packId: pack.id,
-              exerciseType,
-              sessionKey: Date.now(),
-            })
+            navigateTo(
+              {
+                childScreen: {
+                  kind: 'EXERCISE',
+                  packId: pack.id,
+                  exerciseType,
+                  sessionKey: Date.now(),
+                },
+              },
+              'push'
+            )
           }
         />
       );
@@ -358,19 +463,25 @@ export function App(): React.ReactElement {
           score={childScreen.score}
           movesCount={childScreen.movesCount}
           onPlayAgain={() =>
-            setChildScreen({
-              kind: 'EXERCISE',
-              packId: pack.id,
-              exerciseType: childScreen.exerciseType,
-              sessionKey: Date.now(),
-            })
+            navigateTo(
+              {
+                childScreen: {
+                  kind: 'EXERCISE',
+                  packId: pack.id,
+                  exerciseType: childScreen.exerciseType,
+                  sessionKey: Date.now(),
+                },
+              },
+              'replace'
+            )
           }
-          onDone={() => setChildScreen({ kind: 'PACK_HUB', packId: pack.id })}
+          onDone={() => navigateUpOneLevel({ childScreen: { kind: 'PACK_HUB', packId: pack.id } })}
         />
       );
     }
 
-    const goBackToPack = () => setChildScreen({ kind: 'PACK_HUB', packId: pack.id });
+    const goBackToPack = () =>
+      navigateUpOneLevel({ childScreen: { kind: 'PACK_HUB', packId: pack.id } });
 
     switch (childScreen.exerciseType) {
       case 'MATCHING':
@@ -452,7 +563,7 @@ export function App(): React.ReactElement {
             pack={detailPack}
             words={wordsByPack.get(detailPack.id) ?? []}
             profiles={store.childProfiles}
-            onBack={() => setParentDetailPackId(null)}
+            onBack={() => navigateUpOneLevel({ parentDetailPackId: null })}
             onUpdatePack={handleUpdatePack}
             onSaveWord={handleSaveWord}
             onDeleteWord={handleDeleteWord}
@@ -465,7 +576,7 @@ export function App(): React.ReactElement {
           packs={store.packs}
           words={store.words}
           profiles={store.childProfiles}
-          onOpenPackDetail={(id) => setParentDetailPackId(id)}
+          onOpenPackDetail={(id) => navigateTo({ parentDetailPackId: id }, 'push')}
           onSavePack={handleSavePack}
           onDeletePack={handleDeletePack}
           onSaveWord={handleSaveWord}
@@ -513,7 +624,7 @@ export function App(): React.ReactElement {
       <TopHeader
         activeChild={activeChild}
         currentMode={mode}
-        onOpenProfileSwitcher={() => setShowProfileSwitcher(true)}
+        onOpenProfileSwitcher={() => navigateTo({ showProfileSwitcher: true }, 'push')}
         onSwitchMode={handleSwitchMode}
       />
 
@@ -535,8 +646,9 @@ export function App(): React.ReactElement {
                   key={id}
                   type="button"
                   onClick={() => {
-                    setParentTab(id);
-                    if (id !== 'PACKS') setParentDetailPackId(null);
+                    if (parentTab !== id || parentDetailPackId !== null) {
+                      navigateTo({ parentTab: id, parentDetailPackId: null }, 'push');
+                    }
                   }}
                   className={`flex min-w-[84px] flex-col items-center gap-0.5 rounded-2xl px-4 py-1.5 text-xs font-extrabold transition ${
                     active ? 'text-brand-indigo' : 'text-brand-muted'
@@ -561,10 +673,17 @@ export function App(): React.ReactElement {
         <ParentalGateModal
           settings={store.settings}
           onUnlocked={() => {
-            setShowGate(false);
-            setMode('PARENT');
+            navigateTo(
+              {
+                showGate: false,
+                mode: 'PARENT',
+                parentTab: 'PACKS',
+                parentDetailPackId: null,
+              },
+              'replace'
+            );
           }}
-          onDismiss={() => setShowGate(false)}
+          onDismiss={() => navigateUpOneLevel({ showGate: false })}
         />
       )}
 
@@ -572,8 +691,14 @@ export function App(): React.ReactElement {
         <ChildProfileSwitcherModal
           profiles={store.childProfiles}
           activeChildId={activeChild.id}
-          onSelectProfile={handleSelectChild}
-          onDismiss={() => setShowProfileSwitcher(false)}
+          onSelectProfile={(childId) => {
+            handleSelectChild(childId);
+            navigateUpOneLevel({
+              showProfileSwitcher: false,
+              childScreen: { kind: 'HOME' },
+            });
+          }}
+          onDismiss={() => navigateUpOneLevel({ showProfileSwitcher: false })}
         />
       )}
     </div>

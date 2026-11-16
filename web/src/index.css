@@ -24,3 +24,12 @@
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+.word-art-container {
+  container-type: size;
+}
+
+.word-art-emoji {
+  font-size: clamp(26px, 68cqh, 150px);
+  line-height: 1;
+}
