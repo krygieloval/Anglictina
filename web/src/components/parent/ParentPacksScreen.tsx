@@ -2,15 +2,12 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import {
   ChevronRight,
   Edit3,
-  ImagePlus,
   Plus,
   Search,
   Trash2,
   X,
 } from 'lucide-react';
 import { getPackPalette, PACK_PALETTES } from '../../data/palettes';
-import { encodeImageFileToDataUrl } from '../../services/imageCodec';
-import { downloadStockPhotoAsDataUrl } from '../../services/stockPhotos';
 import {
   ChildProfile,
   DEFAULT_EXERCISE_IDS,
@@ -19,7 +16,6 @@ import {
   VocabWord,
   WordPack,
 } from '../../types/vocab';
-import { StockPhotoPickerModal } from '../StockPhotoPickerModal';
 import { WordIllustration } from '../WordIllustration';
 import { WordEditorModal } from './WordEditorModal';
 
@@ -77,10 +73,6 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
     packId: string;
     word?: VocabWord | null;
   }>({ open: false, packId: '' });
-  const [stockTargetWord, setStockTargetWord] = useState<VocabWord | null>(null);
-  const [busyWordId, setBusyWordId] = useState<string | null>(null);
-  const quickFileRef = useRef<HTMLInputElement | null>(null);
-  const uploadTargetWordRef = useRef<VocabWord | null>(null);
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [draftPackIds, setDraftPackIds] = useState<string[] | null>(null);
@@ -418,26 +410,6 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
     );
   };
 
-  const handleQuickUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const target = uploadTargetWordRef.current;
-    e.target.value = '';
-    if (!file || !target) return;
-    setBusyWordId(target.id);
-    try {
-      const dataUrl = await encodeImageFileToDataUrl(file);
-      onSaveWord({
-        id: target.id,
-        packId: target.packId,
-        englishWord: target.englishWord,
-        czechTranslation: target.czechTranslation,
-        imageDataUrl: dataUrl,
-      });
-    } finally {
-      setBusyWordId(null);
-    }
-  };
-
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-3 py-4 pb-24 sm:px-4">
       <div className="flex items-center justify-between">
@@ -690,7 +662,6 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
                           englishWord={w.englishWord}
                           czechTranslation={w.czechTranslation}
                           imageDataUrl={w.imageDataUrl}
-                          isLoading={busyWordId === w.id}
                           className="h-12 w-12 shrink-0 rounded-xl"
                         />
                         <div className="min-w-0 flex-1">
@@ -699,25 +670,6 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
                           </p>
                           <p className="truncate text-xs text-brand-muted">{w.czechTranslation}</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setStockTargetWord(w)}
-                          title="Vybrat obrázek z databanky"
-                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-brand-indigo shadow-sm"
-                        >
-                          <Search className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            uploadTargetWordRef.current = w;
-                            quickFileRef.current?.click();
-                          }}
-                          title="Nahrát vlastní obrázek"
-                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-brand-coral shadow-sm"
-                        >
-                          <ImagePlus className="h-4 w-4" />
-                        </button>
                         <button
                           type="button"
                           onClick={() =>
@@ -774,14 +726,6 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
         </div>
       )}
 
-      <input
-        ref={quickFileRef}
-        type="file"
-        accept="image/*"
-        onChange={handleQuickUpload}
-        className="hidden"
-      />
-
       {wordModalState.open && (
         <WordEditorModal
           existingWord={wordModalState.word}
@@ -794,30 +738,6 @@ export const ParentPacksScreen: React.FC<ParentPacksScreenProps> = ({
             setWordModalState({ open: false, packId: '' });
           }}
           onDismiss={() => setWordModalState({ open: false, packId: '' })}
-        />
-      )}
-
-      {stockTargetWord && (
-        <StockPhotoPickerModal
-          initialQuery={stockTargetWord.englishWord || stockTargetWord.czechTranslation}
-          onSelectPhoto={async (photo) => {
-            const target = stockTargetWord;
-            setStockTargetWord(null);
-            setBusyWordId(target.id);
-            try {
-              const dataUrl = await downloadStockPhotoAsDataUrl(photo);
-              onSaveWord({
-                id: target.id,
-                packId: target.packId,
-                englishWord: target.englishWord,
-                czechTranslation: target.czechTranslation,
-                imageDataUrl: dataUrl,
-              });
-            } finally {
-              setBusyWordId(null);
-            }
-          }}
-          onDismiss={() => setStockTargetWord(null)}
         />
       )}
 

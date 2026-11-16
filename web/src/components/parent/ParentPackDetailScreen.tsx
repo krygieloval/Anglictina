@@ -1,15 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ArrowLeft,
   Edit3,
-  ImagePlus,
   Plus,
-  Search,
   Sparkles,
   Trash2,
 } from 'lucide-react';
 import { getPackPalette } from '../../data/palettes';
-import { encodeImageFileToDataUrl } from '../../services/imageCodec';
 import { downloadStockPhotoAsDataUrl, searchStockPhotos } from '../../services/stockPhotos';
 import { speakEnglish } from '../../services/speech';
 import {
@@ -20,7 +17,6 @@ import {
   WordPack,
 } from '../../types/vocab';
 import { SpeakButton } from '../SpeakButton';
-import { StockPhotoPickerModal } from '../StockPhotoPickerModal';
 import { WordIllustration } from '../WordIllustration';
 import { WordEditorModal } from './WordEditorModal';
 
@@ -54,12 +50,8 @@ export const ParentPackDetailScreen: React.FC<ParentPackDetailScreenProps> = ({
   const palette = getPackPalette(pack.colorIndex);
   const [editingWord, setEditingWord] = useState<VocabWord | null>(null);
   const [creatingWord, setCreatingWord] = useState(false);
-  const [stockTargetWord, setStockTargetWord] = useState<VocabWord | null>(null);
   const [busyWordId, setBusyWordId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const uploadTargetWordRef = useRef<VocabWord | null>(null);
 
   const toggleExercise = (exId: ExerciseTypeId) => {
     const exists = pack.enabledExercises.includes(exId);
@@ -76,29 +68,6 @@ export const ParentPackDetailScreen: React.FC<ParentPackDetailScreenProps> = ({
       ? pack.assignedChildIds.filter((x) => x !== childId)
       : [...pack.assignedChildIds, childId];
     onUpdatePack({ ...pack, assignedChildIds: next, updatedAt: Date.now() });
-  };
-
-  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const target = uploadTargetWordRef.current;
-    e.target.value = '';
-    if (!file || !target) return;
-    setBusyWordId(target.id);
-    try {
-      const dataUrl = await encodeImageFileToDataUrl(file);
-      onSaveWord({
-        id: target.id,
-        packId: pack.id,
-        englishWord: target.englishWord,
-        czechTranslation: target.czechTranslation,
-        imageDataUrl: dataUrl,
-      });
-      onNotify(`Vlastní obrázek uložen pro „${target.englishWord}“.`);
-    } catch (err) {
-      onNotify(err instanceof Error ? err.message : 'Obrázek se nepodařilo nahrát.');
-    } finally {
-      setBusyWordId(null);
-    }
   };
 
   const handleBulkFetch = async () => {
@@ -258,27 +227,6 @@ export const ParentPackDetailScreen: React.FC<ParentPackDetailScreenProps> = ({
                 <SpeakButton onClick={() => speakEnglish(word.englishWord)} />
                 <button
                   type="button"
-                  onClick={() => setStockTargetWord(word)}
-                  aria-label="Obrázek z databanky"
-                  title="Obrázek z databanky"
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-indigoLight text-brand-indigo"
-                >
-                  <Search className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    uploadTargetWordRef.current = word;
-                    fileInputRef.current?.click();
-                  }}
-                  aria-label="Nahrát vlastní obrázek"
-                  title="Nahrát vlastní obrázek"
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-coralLight text-brand-coralDark"
-                >
-                  <ImagePlus className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
                   onClick={() => setEditingWord(word)}
                   aria-label="Upravit slovíčko"
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-brand-ink"
@@ -299,14 +247,6 @@ export const ParentPackDetailScreen: React.FC<ParentPackDetailScreenProps> = ({
         )}
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleUploadFile}
-        className="hidden"
-      />
-
       {(creatingWord || editingWord) && (
         <WordEditorModal
           existingWord={editingWord}
@@ -323,33 +263,6 @@ export const ParentPackDetailScreen: React.FC<ParentPackDetailScreenProps> = ({
             setCreatingWord(false);
             setEditingWord(null);
           }}
-        />
-      )}
-
-      {stockTargetWord && (
-        <StockPhotoPickerModal
-          initialQuery={stockTargetWord.englishWord || stockTargetWord.czechTranslation}
-          onSelectPhoto={async (photo) => {
-            const target = stockTargetWord;
-            setStockTargetWord(null);
-            setBusyWordId(target.id);
-            try {
-              const dataUrl = await downloadStockPhotoAsDataUrl(photo);
-              onSaveWord({
-                id: target.id,
-                packId: pack.id,
-                englishWord: target.englishWord,
-                czechTranslation: target.czechTranslation,
-                imageDataUrl: dataUrl,
-              });
-              onNotify(`Obrázek z databanky uložen pro „${target.englishWord}“.`);
-            } catch (err) {
-              onNotify(err instanceof Error ? err.message : 'Obrázek se nepodařilo stáhnout.');
-            } finally {
-              setBusyWordId(null);
-            }
-          }}
-          onDismiss={() => setStockTargetWord(null)}
         />
       )}
     </div>
