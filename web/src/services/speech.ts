@@ -64,6 +64,7 @@ export function blobToBase64(blob: Blob): Promise<string> {
       resolve(result.slice(commaIdx + 1));
     };
     reader.onerror = () => reject(new Error('Nepodařilo se přečíst zvukovou nahrávku.'));
+    reader.onabort = () => reject(new Error('Čtení zvukové nahrávky bylo přerušeno.'));
     reader.readAsDataURL(blob);
   });
 }
@@ -71,21 +72,39 @@ export function blobToBase64(blob: Blob): Promise<string> {
 export async function evaluatePronunciationAudio(
   targetWord: string,
   audioBlob: Blob,
-  rawMimeType: string
+  rawMimeType: string,
+  onStep?: (stepLabel: string) => void
 ): Promise<GeminiPronunciationResult> {
+  if (!audioBlob || audioBlob.size <= 0) {
+    throw new Error('Nahrávka byla prázdná, zkus to znovu');
+  }
+
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
   if (!apiKey) {
     throw new MissingGeminiKeyError();
   }
 
+  onStep?.('1. Zpracovávám audio...');
   const cleanMimeType = normalizeAudioMimeType(rawMimeType || audioBlob.type);
   const base64Audio = await blobToBase64(audioBlob);
 
   const prompt = `Poslechni si nahrávku. Uživatel se snaží anglicky vyslovit slovo: ${targetWord}. Pokud je výslovnost srozumitelná (alespoň na 70 %), vrať JSON: {"passed": true, "score": číslo 0-100, "feedback": "krátká pochvala nebo tip česky"}. Pokud ne, vrať passed: false a krátkou radu česky.`;
 
+  onStep?.('2. Odesílám do Gemini...');
+  const controller = new AbortController();
+  let timeoutId: number | undefined;
+
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = window.setTimeout(() => {
+        controller.abort();
+        reject(new Error('Vypršel časový limit 12 sekund při čekání na odpověď Gemini.'));
+      }, 12000);
+    });
+
+    const generatePromise = ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [
         {
@@ -102,6 +121,7 @@ export async function evaluatePronunciationAudio(
         },
       ],
       config: {
+        abortSignal: controller.signal,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -114,6 +134,10 @@ export async function evaluatePronunciationAudio(
         },
       },
     });
+
+    const response = await Promise.race([generatePromise, timeoutPromise]);
+
+    onStep?.('3. Hotovo');
 
     const rawText = (response.text ?? '').trim();
     const jsonText = rawText
@@ -135,8 +159,14 @@ export async function evaluatePronunciationAudio(
         : 'Zkus slovíčko vyslovit ještě jednou zřetelněji.';
 
     return { passed, score, feedback };
-  } catch {
-    throw new Error('Zkus to prosím za chvilku znovu');
+  } catch (err) {
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const sanitized = apiKey ? rawMessage.split(apiKey).join('***') : rawMessage;
+    throw new Error(sanitized || 'Neznámá chyba při volání Gemini API');
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
   }
 }
 

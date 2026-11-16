@@ -12,7 +12,6 @@ import {
 import {
   evaluatePronunciationAudio,
   isAudioRecordingSupported,
-  MissingGeminiKeyError,
   pickCompatibleAudioMimeType,
   speakEnglish,
 } from '../../../services/speech';
@@ -65,6 +64,8 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
   const [micLevel, setMicLevel] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [debugStep, setDebugStep] = useState<string | null>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
   const [scorePercent, setScorePercent] = useState<number | null>(null);
   const [isPassed, setIsPassed] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -147,6 +148,8 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     cleanupRecording(true);
     setIsEvaluating(false);
     setStatusMessage(null);
+    setDebugStep(null);
+    setDebugError(null);
     setScorePercent(null);
     setIsPassed(false);
     setHasError(false);
@@ -208,6 +211,8 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     cleanupRecording(true);
     discardRef.current = false;
     setHasError(false);
+    setDebugStep(null);
+    setDebugError(null);
     setScorePercent(null);
     setStatusMessage(null);
     setHasSpoken(false);
@@ -267,29 +272,39 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
         setMicLevel(0);
         setElapsedMs(0);
 
-        if (discardRef.current) return;
-
-        const audioBlob = new Blob(chunksRef.current, { type: actualMime });
-        chunksRef.current = [];
-
-        if (audioBlob.size < 200) {
-          setHasError(true);
-          setStatusMessage('Nahrávka byla příliš krátká. Zkus říct slovíčko ještě jednou nahlas!');
+        if (discardRef.current) {
+          setIsEvaluating(false);
           return;
         }
 
         setIsEvaluating(true);
         setHasError(false);
+        setDebugError(null);
+        setDebugStep('1. Zpracovávám audio...');
         setStatusMessage('Vyhodnocuji tvoji výslovnost...');
 
         try {
+          const audioBlob = new Blob(chunksRef.current, { type: actualMime });
+          chunksRef.current = [];
+
+          if (audioBlob.size <= 0) {
+            setHasError(true);
+            setStatusMessage('Nahrávka byla prázdná, zkus to znovu');
+            setDebugError('Velikost Blobu je 0 bajtů.');
+            return;
+          }
+
           const result = await evaluatePronunciationAudio(
             currentWord.englishWord,
             audioBlob,
-            actualMime
+            actualMime,
+            (step) => {
+              if (!discardRef.current) setDebugStep(step);
+            }
           );
           if (discardRef.current) return;
 
+          setDebugStep('3. Hotovo');
           setScorePercent(result.score);
           setIsPassed(result.passed);
           setStatusMessage(result.feedback);
@@ -307,15 +322,10 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
           if (discardRef.current) return;
           setHasError(true);
           setScorePercent(null);
-          if (err instanceof MissingGeminiKeyError) {
-            setStatusMessage('Zkus to prosím za chvilku znovu');
-          } else {
-            setStatusMessage('Zkus to prosím za chvilku znovu');
-          }
+          setStatusMessage('Zkus to prosím za chvilku znovu');
+          setDebugError(err instanceof Error ? err.message : String(err));
         } finally {
-          if (!discardRef.current) {
-            setIsEvaluating(false);
-          }
+          setIsEvaluating(false);
         }
       };
 
@@ -347,7 +357,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
 
       setIsRecording(true);
       setElapsedMs(0);
-      recorder.start();
+      recorder.start(250);
 
       vadIntervalRef.current = window.setInterval(() => {
         const now = Date.now();
@@ -563,6 +573,12 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
             <p className="mt-1 text-xs font-extrabold opacity-85">
               Hodnocení: {scorePercent} %
             </p>
+          )}
+          {(debugStep || debugError) && (isEvaluating || hasError) && (
+            <div className="mt-2 space-y-0.5 border-t border-current/15 pt-2 text-left text-[11px] font-medium opacity-85 break-words">
+              {debugStep && <p>Krok: {debugStep}</p>}
+              {debugError && <p>Chyba: {debugError}</p>}
+            </div>
           )}
         </div>
       )}
