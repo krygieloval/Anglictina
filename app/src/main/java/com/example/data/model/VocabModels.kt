@@ -30,8 +30,8 @@ enum class ExerciseType(
     ),
     SHOOTER(
         id = "SHOOTER",
-        titleCz = "Sestřelování slovíček",
-        shortTitleCz = "Sestřelování",
+        titleCz = "Střílečka",
+        shortTitleCz = "Střílečka",
         descriptionCz = "Vesmírná raketa! Poslechni si české slovo a sestřel správný asteroid.",
         skillTagCz = "Minihra"
     ),

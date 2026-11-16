@@ -156,7 +156,7 @@ class EnglishSpeechListener(
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {
-                onRmsChanged(rmsdB)
+                this@EnglishSpeechListener.onRmsChanged.invoke(rmsdB)
             }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
@@ -170,11 +170,11 @@ class EnglishSpeechListener(
                         "Rozpoznávání řeči potřebuje připojení k internetu."
                     else -> "Nepodařilo se rozpoznat řeč (kód $error)."
                 }
-                onError(msg)
+                this@EnglishSpeechListener.onError.invoke(msg)
             }
             override fun onResults(results: Bundle?) {
                 val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-                onResults(list)
+                this@EnglishSpeechListener.onResults.invoke(list)
             }
             override fun onPartialResults(partialResults: Bundle?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
