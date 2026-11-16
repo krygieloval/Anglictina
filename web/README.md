@@ -4,7 +4,7 @@ Moderní výuková webová aplikace pro děti (iOS Safari, Android Chrome i desk
 
 ## Funkce
 - **12 výchozích balíčků**: Unit 1–8, Čísla 1–10, Zvířata, Barvy, Ovoce a zelenina
-- **7 typů cvičení**: Spojovačka, Doplňovačka (s předvyplněním 1–2 písmen), Výslovnost (nahrávání mikrofonu přes MediaRecorder + vyhodnocení modelem `gemini-2.5-flash`), Střílečka (vesmírná HTML5 Canvas minihra), Pexeso, Anagram, Kvíz
+- **7 typů cvičení**: Spojovačka, Doplňovačka (s předvyplněním 1–2 písmen), Výslovnost (MediaRecorder s automatickou detekcí ticha + vyhodnocení modelem `gemini-3.8-flash`), Střílečka (vesmírná HTML5 Canvas minihra), Pexeso, Anagram, Kvíz
 - **Rodičovský režim**: profily dětí (`Dítě 1` + vlastní avataři), PIN zámek, správa balíčků a slovíček, databanka obrázků (Iconify / Openverse / Wikipedia) i nahrání vlastních obrázků, detailní přehled pokroku
 
 ## Lokální spuštění

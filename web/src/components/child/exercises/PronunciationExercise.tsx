@@ -1,9 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Loader2, Mic, MicOff, RotateCcw, Sparkles, Square } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  Mic,
+  MicOff,
+  RotateCcw,
+  Sparkles,
+  Square,
+} from 'lucide-react';
 import {
   evaluatePronunciationAudio,
-  GeminiEvaluationError,
-  getGeminiKeyDiagnostic,
   isAudioRecordingSupported,
   MissingGeminiKeyError,
   pickCompatibleAudioMimeType,
@@ -14,7 +21,10 @@ import { SpeakButton } from '../../SpeakButton';
 import { WordIllustration } from '../../WordIllustration';
 import { PracticeOutcomeItem } from '../PracticeSummaryScreen';
 
-const MAX_RECORD_MS = 4000;
+const MAX_RECORD_MS = 15000;
+const SILENCE_TIMEOUT_MS = 1200;
+const BASE_SPEECH_RMS_THRESHOLD = 0.025;
+const VAD_POLL_MS = 60;
 
 interface PronunciationExerciseProps {
   words: VocabWord[];
@@ -31,6 +41,15 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
+function getAudioContextCtor(): (new () => AudioContext) | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    AudioContext?: new () => AudioContext;
+    webkitAudioContext?: new () => AudioContext;
+  };
+  return w.AudioContext ?? w.webkitAudioContext ?? null;
+}
+
 export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
   words,
   onBack,
@@ -42,12 +61,10 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [hasSpoken, setHasSpoken] = useState(false);
+  const [micLevel, setMicLevel] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorDetails, setErrorDetails] = useState<{
-    technical: string;
-    keyInfo: string;
-  } | null>(null);
   const [scorePercent, setScorePercent] = useState<number | null>(null);
   const [isPassed, setIsPassed] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -55,21 +72,42 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const stopTimeoutRef = useRef<number | null>(null);
-  const tickIntervalRef = useRef<number | null>(null);
+  const maxStopTimeoutRef = useRef<number | null>(null);
+  const vadIntervalRef = useRef<number | null>(null);
   const discardRef = useRef(false);
 
   const currentWord = queue[currentIndex];
 
-  const clearTimers = () => {
-    if (stopTimeoutRef.current !== null) {
-      window.clearTimeout(stopTimeoutRef.current);
-      stopTimeoutRef.current = null;
+  const clearTimersAndAudioNodes = () => {
+    if (maxStopTimeoutRef.current !== null) {
+      window.clearTimeout(maxStopTimeoutRef.current);
+      maxStopTimeoutRef.current = null;
     }
-    if (tickIntervalRef.current !== null) {
-      window.clearInterval(tickIntervalRef.current);
-      tickIntervalRef.current = null;
+    if (vadIntervalRef.current !== null) {
+      window.clearInterval(vadIntervalRef.current);
+      vadIntervalRef.current = null;
+    }
+    if (sourceNodeRef.current) {
+      try {
+        sourceNodeRef.current.disconnect();
+      } catch {
+        // Ignore disconnect errors
+      }
+      sourceNodeRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      const ctx = audioCtxRef.current;
+      audioCtxRef.current = null;
+      try {
+        if (ctx.state !== 'closed') {
+          void ctx.close();
+        }
+      } catch {
+        // Ignore close errors
+      }
     }
   };
 
@@ -88,7 +126,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
 
   const cleanupRecording = (discard: boolean) => {
     discardRef.current = discard;
-    clearTimers();
+    clearTimersAndAudioNodes();
     const rec = recorderRef.current;
     recorderRef.current = null;
     if (rec && rec.state !== 'inactive') {
@@ -100,6 +138,8 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     }
     releaseStream();
     setIsRecording(false);
+    setHasSpoken(false);
+    setMicLevel(0);
     setElapsedMs(0);
   };
 
@@ -107,7 +147,6 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     cleanupRecording(true);
     setIsEvaluating(false);
     setStatusMessage(null);
-    setErrorDetails(null);
     setScorePercent(null);
     setIsPassed(false);
     setHasError(false);
@@ -135,7 +174,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
   };
 
   const stopRecordingNow = () => {
-    clearTimers();
+    clearTimersAndAudioNodes();
     const rec = recorderRef.current;
     if (rec && rec.state === 'recording') {
       try {
@@ -169,14 +208,31 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     cleanupRecording(true);
     discardRef.current = false;
     setHasError(false);
-    setErrorDetails(null);
     setScorePercent(null);
     setStatusMessage(null);
+    setHasSpoken(false);
+    setMicLevel(0);
+
+    // Create/resume AudioContext synchronously on user tap for iOS Safari compatibility
+    const AudioCtx = getAudioContextCtor();
+    let audioCtx: AudioContext | null = null;
+    if (AudioCtx) {
+      try {
+        audioCtx = new AudioCtx();
+        if (audioCtx.state === 'suspended') {
+          void audioCtx.resume();
+        }
+        audioCtxRef.current = audioCtx;
+      } catch {
+        audioCtx = null;
+      }
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (discardRef.current) {
         stream.getTracks().forEach((t) => t.stop());
+        clearTimersAndAudioNodes();
         return;
       }
       streamRef.current = stream;
@@ -203,10 +259,12 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
       };
 
       recorder.onstop = async () => {
-        clearTimers();
+        clearTimersAndAudioNodes();
         releaseStream();
         recorderRef.current = null;
         setIsRecording(false);
+        setHasSpoken(false);
+        setMicLevel(0);
         setElapsedMs(0);
 
         if (discardRef.current) return;
@@ -249,18 +307,10 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
           if (discardRef.current) return;
           setHasError(true);
           setScorePercent(null);
-          setStatusMessage('Zkus to prosím za chvilku znovu');
-          if (err instanceof GeminiEvaluationError || err instanceof MissingGeminiKeyError) {
-            setErrorDetails({
-              technical: err.technicalDetails,
-              keyInfo: err.keyDiagnostic,
-            });
+          if (err instanceof MissingGeminiKeyError) {
+            setStatusMessage('Zkus to prosím za chvilku znovu');
           } else {
-            const msg = err instanceof Error ? err.message : String(err);
-            setErrorDetails({
-              technical: msg || 'Neznámá chyba',
-              keyInfo: getGeminiKeyDiagnostic(),
-            });
+            setStatusMessage('Zkus to prosím za chvilku znovu');
           }
         } finally {
           if (!discardRef.current) {
@@ -269,16 +319,75 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
         }
       };
 
+      // Set up Web Audio API AnalyserNode for real-time volume & silence detection
+      let analyser: AnalyserNode | null = null;
+      let sampleBuffer: Uint8Array<ArrayBuffer> | null = null;
+      if (audioCtx) {
+        try {
+          if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+          }
+          const src = audioCtx.createMediaStreamSource(stream);
+          sourceNodeRef.current = src;
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 1024;
+          analyser.smoothingTimeConstant = 0.25;
+          src.connect(analyser);
+          sampleBuffer = new Uint8Array(new ArrayBuffer(analyser.fftSize));
+        } catch {
+          analyser = null;
+        }
+      }
+
       const startedAt = Date.now();
+      let detectedSpeech = false;
+      let lastSpeechAt = startedAt;
+      let noiseFloorSum = 0;
+      let noiseFloorSamples = 0;
+
       setIsRecording(true);
       setElapsedMs(0);
       recorder.start();
 
-      tickIntervalRef.current = window.setInterval(() => {
-        setElapsedMs(Math.min(MAX_RECORD_MS, Date.now() - startedAt));
-      }, 100);
+      vadIntervalRef.current = window.setInterval(() => {
+        const now = Date.now();
+        setElapsedMs(Math.min(MAX_RECORD_MS, now - startedAt));
 
-      stopTimeoutRef.current = window.setTimeout(() => {
+        if (!analyser || !sampleBuffer) return;
+
+        analyser.getByteTimeDomainData(sampleBuffer);
+        let sumSq = 0;
+        for (let i = 0; i < sampleBuffer.length; i++) {
+          const centered = (sampleBuffer[i] - 128) / 128;
+          sumSq += centered * centered;
+        }
+        const rms = Math.sqrt(sumSq / sampleBuffer.length);
+        setMicLevel(Math.min(1, rms * 5));
+
+        // Calibrate room noise floor during initial ~240ms before setting adaptive threshold
+        if (!detectedSpeech && now - startedAt < 240) {
+          noiseFloorSum += rms;
+          noiseFloorSamples += 1;
+        }
+        const ambientAvg = noiseFloorSamples > 0 ? noiseFloorSum / noiseFloorSamples : 0;
+        const threshold = Math.min(
+          0.075,
+          Math.max(BASE_SPEECH_RMS_THRESHOLD, ambientAvg * 2.2)
+        );
+
+        if (rms >= threshold) {
+          if (!detectedSpeech) {
+            detectedSpeech = true;
+            setHasSpoken(true);
+          }
+          lastSpeechAt = now;
+        } else if (detectedSpeech && now - lastSpeechAt >= SILENCE_TIMEOUT_MS) {
+          stopRecordingNow();
+        }
+      }, VAD_POLL_MS);
+
+      // 15-second hard safety limit in case background noise prevents silence detection
+      maxStopTimeoutRef.current = window.setTimeout(() => {
         stopRecordingNow();
       }, MAX_RECORD_MS);
     } catch (err) {
@@ -314,7 +423,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
   };
 
   const progress = Math.round(((currentIndex + 1) / Math.max(1, queue.length)) * 100);
-  const recordProgress = Math.min(100, Math.round((elapsedMs / MAX_RECORD_MS) * 100));
+  const micBarPercent = Math.round(micLevel * 100);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-3 py-4 sm:px-4">
@@ -374,7 +483,10 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
       <div className="flex flex-col items-center py-2">
         <div className="relative flex h-28 w-28 items-center justify-center">
           {isRecording && (
-            <span className="absolute inset-0 rounded-full bg-brand-coral animate-mic-pulse" />
+            <span
+              className="absolute inset-0 rounded-full bg-brand-coral/35 transition-transform duration-75"
+              style={{ transform: `scale(${1 + micLevel * 0.35})` }}
+            />
           )}
           <button
             type="button"
@@ -406,13 +518,15 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
             <div className="inline-flex items-center gap-2 rounded-full bg-brand-coralLight px-3.5 py-1 text-xs font-extrabold text-brand-coralDark">
               <span className="h-2.5 w-2.5 rounded-full bg-brand-coral animate-pulse" />
               <span>
-                Nahrávám... {(elapsedMs / 1000).toFixed(1)} s / 4.0 s
+                {hasSpoken
+                  ? `Slyším tě! (${(elapsedMs / 1000).toFixed(1)} s)`
+                  : `Čekám na hlas... (${(elapsedMs / 1000).toFixed(1)} s)`}
               </span>
             </div>
-            <div className="h-1.5 w-40 overflow-hidden rounded-full bg-slate-200">
+            <div className="h-2 w-40 overflow-hidden rounded-full bg-slate-200">
               <div
-                className="h-full rounded-full bg-brand-coral transition-all duration-100"
-                style={{ width: `${recordProgress}%` }}
+                className="h-full rounded-full bg-brand-coral transition-all duration-75"
+                style={{ width: `${Math.max(8, micBarPercent)}%` }}
               />
             </div>
           </div>
@@ -424,8 +538,8 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
             : isEvaluating
             ? 'Posílám nahrávku k vyhodnocení...'
             : isRecording
-            ? 'Řekni slovo nahlas — klepnutím nahrávání ukončíš'
-            : 'Klepni na mikrofon a řekni slovo anglicky (max 4 s)'}
+            ? 'Jakmile domluvíš, nahrávání se samo zastaví (nebo klepni na čtvereček)'
+            : 'Klepni na mikrofon a řekni slovo anglicky'}
         </p>
       </div>
 
@@ -449,12 +563,6 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
             <p className="mt-1 text-xs font-extrabold opacity-85">
               Hodnocení: {scorePercent} %
             </p>
-          )}
-          {hasError && errorDetails && (
-            <div className="mt-2 space-y-1 border-t border-red-200/80 pt-2 text-left text-[11px] font-medium text-red-800/90 break-words">
-              <p>Technická chyba: {errorDetails.technical}</p>
-              <p>{errorDetails.keyInfo}</p>
-            </div>
           )}
         </div>
       )}
