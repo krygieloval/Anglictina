@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, Mic, MicOff, RotateCcw, Sparkles, Square } from 'lucide-react';
 import {
   evaluatePronunciationAudio,
+  GeminiEvaluationError,
+  getGeminiKeyDiagnostic,
   isAudioRecordingSupported,
   MissingGeminiKeyError,
   pickCompatibleAudioMimeType,
@@ -42,6 +44,10 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<{
+    technical: string;
+    keyInfo: string;
+  } | null>(null);
   const [scorePercent, setScorePercent] = useState<number | null>(null);
   const [isPassed, setIsPassed] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -101,6 +107,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     cleanupRecording(true);
     setIsEvaluating(false);
     setStatusMessage(null);
+    setErrorDetails(null);
     setScorePercent(null);
     setIsPassed(false);
     setHasError(false);
@@ -162,6 +169,7 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
     cleanupRecording(true);
     discardRef.current = false;
     setHasError(false);
+    setErrorDetails(null);
     setScorePercent(null);
     setStatusMessage(null);
 
@@ -241,12 +249,18 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
           if (discardRef.current) return;
           setHasError(true);
           setScorePercent(null);
-          if (err instanceof MissingGeminiKeyError) {
-            setStatusMessage(
-              'Chybí API klíč VITE_GEMINI_API_KEY v nastavení prostředí aplikace.'
-            );
+          setStatusMessage('Zkus to prosím za chvilku znovu');
+          if (err instanceof GeminiEvaluationError || err instanceof MissingGeminiKeyError) {
+            setErrorDetails({
+              technical: err.technicalDetails,
+              keyInfo: err.keyDiagnostic,
+            });
           } else {
-            setStatusMessage('Zkus to prosím za chvilku znovu');
+            const msg = err instanceof Error ? err.message : String(err);
+            setErrorDetails({
+              technical: msg || 'Neznámá chyba',
+              keyInfo: getGeminiKeyDiagnostic(),
+            });
           }
         } finally {
           if (!discardRef.current) {
@@ -435,6 +449,12 @@ export const PronunciationExercise: React.FC<PronunciationExerciseProps> = ({
             <p className="mt-1 text-xs font-extrabold opacity-85">
               Hodnocení: {scorePercent} %
             </p>
+          )}
+          {hasError && errorDetails && (
+            <div className="mt-2 space-y-1 border-t border-red-200/80 pt-2 text-left text-[11px] font-medium text-red-800/90 break-words">
+              <p>Technická chyba: {errorDetails.technical}</p>
+              <p>{errorDetails.keyInfo}</p>
+            </div>
           )}
         </div>
       )}

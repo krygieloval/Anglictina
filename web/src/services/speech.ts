@@ -6,10 +6,33 @@ export interface GeminiPronunciationResult {
   feedback: string;
 }
 
+export function getGeminiKeyDiagnostic(): string {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim() ?? '';
+  if (!apiKey) return 'VITE_GEMINI_API_KEY načten: ne';
+  return `VITE_GEMINI_API_KEY načten: ano (${apiKey.slice(0, 4)}...)`;
+}
+
 export class MissingGeminiKeyError extends Error {
+  readonly technicalDetails: string;
+  readonly keyDiagnostic: string;
+
   constructor() {
-    super('Chybí proměnná prostředí VITE_GEMINI_API_KEY.');
+    super('Zkus to prosím za chvilku znovu');
     this.name = 'MissingGeminiKeyError';
+    this.technicalDetails = 'Chybí proměnná prostředí VITE_GEMINI_API_KEY.';
+    this.keyDiagnostic = getGeminiKeyDiagnostic();
+  }
+}
+
+export class GeminiEvaluationError extends Error {
+  readonly technicalDetails: string;
+  readonly keyDiagnostic: string;
+
+  constructor(technicalDetails: string, keyDiagnostic: string) {
+    super('Zkus to prosím za chvilku znovu');
+    this.name = 'GeminiEvaluationError';
+    this.technicalDetails = technicalDetails;
+    this.keyDiagnostic = keyDiagnostic;
   }
 }
 
@@ -135,8 +158,22 @@ export async function evaluatePronunciationAudio(
         : 'Zkus slovíčko vyslovit ještě jednou zřetelněji.';
 
     return { passed, score, feedback };
-  } catch {
-    throw new Error('Zkus to prosím za chvilku znovu');
+  } catch (err) {
+    const errObj = err as { status?: unknown; statusCode?: unknown; code?: unknown; message?: unknown };
+    const status = errObj?.status ?? errObj?.statusCode ?? errObj?.code;
+    const rawMessage =
+      err instanceof Error
+        ? err.message
+        : typeof errObj?.message === 'string'
+        ? errObj.message
+        : String(err);
+    const sanitizedMessage = apiKey ? rawMessage.split(apiKey).join('***') : rawMessage;
+    const technicalDetails =
+      status !== undefined && status !== null && String(status).trim() !== ''
+        ? `Status ${String(status)}: ${sanitizedMessage}`
+        : sanitizedMessage || 'Neznámá chyba API';
+
+    throw new GeminiEvaluationError(technicalDetails, getGeminiKeyDiagnostic());
   }
 }
 
