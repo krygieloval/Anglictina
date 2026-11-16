@@ -199,21 +199,65 @@ export const WordShooterGame: React.FC<WordShooterGameProps> = ({
   useEffect(() => {
     let rafId = 0;
     let lastTime = performance.now();
+    let cancelled = false;
     let roundAdvanceTimer: number | null = null;
+    let bannerTimer: number | null = null;
 
-    const triggerBanner = (text: string, ok: boolean) => {
-      setBanner({ text, ok });
-      window.setTimeout(() => setBanner(null), 900);
+    const clearRoundTimers = () => {
+      if (roundAdvanceTimer !== null) {
+        window.clearTimeout(roundAdvanceTimer);
+        roundAdvanceTimer = null;
+      }
     };
 
-    const advanceOrFinish = () => {
-      if (heartsRef.current <= 0 || roundIndexRef.current + 1 >= roundQueue.length) {
-        roundAdvanceTimer = window.setTimeout(() => completeGame(), 650);
-      } else {
-        roundAdvanceTimer = window.setTimeout(() => {
-          setRoundIndex((r) => r + 1);
-        }, 700);
+    const triggerBanner = (text: string, ok: boolean, durationMs = 1100) => {
+      if (bannerTimer !== null) {
+        window.clearTimeout(bannerTimer);
       }
+      setBanner({ text, ok });
+      bannerTimer = window.setTimeout(() => {
+        if (!cancelled) setBanner(null);
+      }, durationMs);
+    };
+
+    const goToNextStep = () => {
+      if (cancelled) return;
+      if (heartsRef.current <= 0 || roundIndexRef.current + 1 >= roundQueue.length) {
+        completeGame();
+      } else {
+        setBanner(null);
+        setRoundIndex((r) => r + 1);
+      }
+    };
+
+    const advanceAfterDelay = (delayMs: number) => {
+      clearRoundTimers();
+      roundAdvanceTimer = window.setTimeout(goToNextStep, delayMs);
+    };
+
+    const advanceAfterSpeechAndDelay = (spokenText: string, minDelayMs = 950) => {
+      clearRoundTimers();
+      let speechDone = false;
+      let minDelayDone = false;
+      let queuedAdvance = false;
+
+      const tryAdvance = () => {
+        if (cancelled || !speechDone || !minDelayDone || queuedAdvance) return;
+        queuedAdvance = true;
+        roundAdvanceTimer = window.setTimeout(() => {
+          goToNextStep();
+        }, 250);
+      };
+
+      roundAdvanceTimer = window.setTimeout(() => {
+        minDelayDone = true;
+        tryAdvance();
+      }, minDelayMs);
+
+      speakEnglish(spokenText, () => {
+        speechDone = true;
+        tryAdvance();
+      });
     };
 
     const spawnBurst = (xNorm: number, yNorm: number, color: string) => {
@@ -317,9 +361,8 @@ export const WordShooterGame: React.FC<WordShooterGameProps> = ({
                   }
                   spawnBurst(hit.xNorm, hit.yNorm, '#34D399');
                   asteroidsRef.current = [];
-                  speakEnglish(hit.word.englishWord);
-                  triggerBanner(`Zásah! ${hit.word.englishWord}`, true);
-                  advanceOrFinish();
+                  triggerBanner(`Zásah! ${hit.word.englishWord}`, true, 2400);
+                  advanceAfterSpeechAndDelay(hit.word.englishWord, 950);
                   break;
                 } else {
                   comboRef.current = 0;
@@ -329,10 +372,10 @@ export const WordShooterGame: React.FC<WordShooterGameProps> = ({
                   outcomesRef.current.set(targetWord.id, { word: targetWord, isCorrect: false });
                   spawnBurst(hit.xNorm, hit.yNorm, '#F87171');
                   asteroidsRef.current.splice(hitIndex, 1);
-                  triggerBanner(`Ups! To bylo „${hit.word.englishWord}“`, false);
+                  triggerBanner(`Ups! To bylo „${hit.word.englishWord}“`, false, 1100);
                   if (heartsRef.current <= 0) {
                     roundResolvedRef.current = true;
-                    advanceOrFinish();
+                    advanceAfterDelay(1100);
                     break;
                   }
                 }
@@ -349,8 +392,8 @@ export const WordShooterGame: React.FC<WordShooterGameProps> = ({
               setHearts(heartsRef.current);
               outcomesRef.current.set(targetWord.id, { word: targetWord, isCorrect: false });
               asteroidsRef.current = [];
-              triggerBanner(`Uletěl! Bylo to „${targetWord.englishWord}“`, false);
-              advanceOrFinish();
+              triggerBanner(`Uletěl! Bylo to „${targetWord.englishWord}“`, false, 1100);
+              advanceAfterDelay(1100);
             }
           }
 
@@ -491,8 +534,10 @@ export const WordShooterGame: React.FC<WordShooterGameProps> = ({
 
     rafId = window.requestAnimationFrame(step);
     return () => {
+      cancelled = true;
       window.cancelAnimationFrame(rafId);
-      if (roundAdvanceTimer !== null) window.clearTimeout(roundAdvanceTimer);
+      clearRoundTimers();
+      if (bannerTimer !== null) window.clearTimeout(bannerTimer);
     };
   }, [bgStars, completeGame, roundQueue]);
 

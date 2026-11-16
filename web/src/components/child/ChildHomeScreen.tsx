@@ -58,7 +58,16 @@ export const ChildHomeScreen: React.FC<ChildHomeScreenProps> = ({
                     >
                       {pack.title}
                     </h3>
-                    <p className={`text-sm font-semibold ${palette.onContainerText} opacity-80`}>
+                    {pack.description && (
+                      <p
+                        className={`truncate text-sm font-semibold ${palette.onContainerText} opacity-85`}
+                      >
+                        {pack.description}
+                      </p>
+                    )}
+                    <p
+                      className={`mt-0.5 text-xs font-semibold ${palette.onContainerText} opacity-75`}
+                    >
                       {wordCount} slovíček • {pack.enabledExercises.length} her
                     </p>
                   </div>

@@ -182,19 +182,44 @@ function pickVoice(langPrefix: string): SpeechSynthesisVoice | null {
   );
 }
 
-export function speakEnglish(text: string): void {
-  if (!text.trim() || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+export function speakEnglish(text: string, onComplete?: () => void): void {
+  const trimmed = text.trim();
+  let completed = false;
+  let fallbackTimer: number | undefined;
+
+  const finish = () => {
+    if (completed) return;
+    completed = true;
+    if (fallbackTimer !== undefined && typeof window !== 'undefined') {
+      window.clearTimeout(fallbackTimer);
+    }
+    onComplete?.();
+  };
+
+  if (!trimmed || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    finish();
+    return;
+  }
+
   try {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(trimmed);
     utterance.lang = 'en-US';
     utterance.rate = 0.85;
     utterance.pitch = 1.05;
     const voice = pickVoice('en-US') ?? pickVoice('en-GB');
     if (voice) utterance.voice = voice;
+
+    if (onComplete) {
+      const estimatedMaxMs = Math.max(2000, Math.min(5000, 1000 + trimmed.length * 140));
+      fallbackTimer = window.setTimeout(finish, estimatedMaxMs);
+      utterance.onend = finish;
+      utterance.onerror = finish;
+    }
+
     window.speechSynthesis.speak(utterance);
   } catch {
-    // Ignore Web Speech errors on restricted browsers
+    finish();
   }
 }
 
